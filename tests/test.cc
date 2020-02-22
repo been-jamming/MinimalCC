@@ -2,6 +2,11 @@ int inputd();
 void printd(int);
 void printc(char);
 
+void test(char a, char b){
+	printc(a);
+	printc(b);
+}
+
 void guessing_game(int secret_integer){
 	int current_guess;
 

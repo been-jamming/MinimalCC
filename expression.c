@@ -412,6 +412,13 @@ value cast(value v, type t){
 			printf("sll $s%d, $s%d, 24\n", v.data.reg, v.data.reg);
 			printf("sra $s%d, $s%d, 24\n", v.data.reg, v.data.reg);
 		} else if(v.data.type == data_stack){
+			printf("lw $t0, %d($sp)\n", -(int) v.data.stack_pos);
+			printf("sll $t0, $t0, 24\n");
+			printf("sra $t0, $t0, 24\n");
+			printf("sw $t0, %d($sp)\n", -(int) v.data.stack_pos);
+		}
+	} else if(type_size(v.data_type) == 1 && type_size(t) == 4){
+		if(v.data.type == data_stack){
 			printf("lb $t0, %d($sp)\n", -(int) v.data.stack_pos);
 			printf("sw $t0, %d($sp)\n", -(int) v.data.stack_pos);
 		}
