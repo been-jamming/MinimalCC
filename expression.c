@@ -467,6 +467,7 @@ value compile_function_call(char **c, value func){
 	value current_argument_value;
 	unsigned int label_num;
 	unsigned int func_stack_pos;
+	unsigned int stack_size_before;
 
 	if(peek_type(func.data_type) == type_pointer){
 		pop_type(&(func.data_type));
@@ -479,6 +480,8 @@ value compile_function_call(char **c, value func){
 	label_num = num_labels;
 	num_labels++;
 	reg_state = push_registers();
+	stack_size_before = stack_size;
+
 	if(func.data.type == data_register){
 		func_stack_pos = get_reg_stack_pos(reg_state, func.data.reg);
 	}
@@ -511,15 +514,15 @@ value compile_function_call(char **c, value func){
 	pop_type(&(func.data_type));
 	if(func.data.type == data_register){
 		printf("lw $t0, %d($sp)\n", -(int) func_stack_pos);
-		printf("addi $sp, $sp, %d\n", -(int) reg_state.num_allocated*REGISTER_SIZE);
+		printf("addi $sp, $sp, %d\n", -(int) stack_size_before);
 		printf("jr $t0\n\n");
 	} else if(func.data.type == data_stack){
 		printf("lw $t0, %d($sp)\n", -(int) func.data.stack_pos);
-		printf("addi $sp, $sp, %d\n", -(int) reg_state.num_allocated*REGISTER_SIZE);
+		printf("addi $sp, $sp, %d\n", -(int) stack_size_before);
 		printf("jr $t0\n\n");
 	}
 	printf("__L%d:\n", label_num);
-	printf("addi $sp, $sp, %d\n", (int) reg_state.num_allocated*REGISTER_SIZE);
+	printf("addi $sp, $sp, %d\n", (int) stack_size_before);
 	printf("lw $t0, %d($sp)\n", -(int) return_data.stack_pos);
 	deallocate(return_data);
 	deallocate(return_address_data);
