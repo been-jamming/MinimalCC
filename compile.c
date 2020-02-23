@@ -7,6 +7,7 @@
 #include "compile.h"
 
 int num_vars = 0;
+int num_strs = 0;
 type return_type;
 
 void compile_program(char *program, char *identifier_name, char *arguments, unsigned int identifier_length, unsigned int num_arguments){
@@ -14,6 +15,9 @@ void compile_program(char *program, char *identifier_name, char *arguments, unsi
 
 	c = program;
 	skip_whitespace(&c);
+	printf(".data\n");
+	compile_string_constants(c);
+	printf(".text\n");
 	while(*c){
 		compile_function(&c, identifier_name, arguments, identifier_length, num_arguments);
 		free_local_variables();
@@ -241,6 +245,41 @@ void compile_statement(char **c){
 		} else {
 			fprintf(stderr, "Expected ';'\n");
 			exit(1);
+		}
+	}
+}
+
+void place_string_constant(char **c){
+	unsigned char ignore_next;
+	while(**c && (**c != '"' || ignore_next)){
+		printf("%c", **c);
+		if(**c == '\\'){
+			ignore_next = 1;
+		} else {
+			ignore_next = 0;
+		}
+		++*c;
+	}
+
+	if(!**c){
+		fprintf(stderr, "Error: Expected closing '\"'\n");
+		exit(1);
+	}
+	printf("\"");
+	++*c;
+}
+
+void compile_string_constants(char *c){
+	while(*c){
+		if(*c != '"'){
+			c++;
+		} else {
+			c++;
+			printf("__str%d:\n", num_strs);
+			printf(".asciiz \"");
+			place_string_constant(&c);
+			printf("\n\n");
+			num_strs++;
 		}
 	}
 }

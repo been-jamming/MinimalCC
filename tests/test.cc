@@ -1,10 +1,17 @@
 int inputd();
 void printd(int);
+void prints(char *c);
 
 int factorial(int n);
 
 void entry(){
-	printd(factorial(inputd()));
+	int n;
+
+	prints("Enter n:\n");
+	n = inputd();
+	prints("n! = ");
+	printd(factorial(n));
+	prints("\n");
 }
 
 int factorial(int n){

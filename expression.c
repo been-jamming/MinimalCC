@@ -7,6 +7,7 @@
 dictionary local_variables;
 dictionary global_variables;
 unsigned int num_labels = 0;
+unsigned int current_string = 0;
 unsigned int order_of_operations[] = {0, 6, 6, 7, 7, 1, 5, 5, 4, 3, 2};
 
 type operation_none_func(char *reg_a, char *reg_b, value value_a, value value_b){
@@ -637,8 +638,24 @@ void match_brackets(char **c){
 	++*c;
 }
 
+void skip_string(char **c){
+	while(**c != '\"'){
+		if(**c == '\\'){
+			*c += 2;
+		} else {
+			++*c;
+		}
+	}
+	++*c;
+}
+
 void skip_value(char **c){
 	skip_whitespace(c);
+	if(**c == '\"'){
+		++*c;
+		skip_string(c);
+		return;
+	}
 	while(**c == '*' || **c == '&'){
 		++*c;
 	}
@@ -670,9 +687,38 @@ void skip_value(char **c){
 	}
 }
 
+value compile_string(char **c, unsigned char dereference, unsigned char force_stack){
+	value output;
+
+	if(!dereference){
+		fprintf(stderr, "Error: can't get address of r-value\n");
+		exit(1);
+	}
+	++*c;
+	skip_string(c);
+
+	output.data = allocate(force_stack);
+	if(output.data.type == data_register){
+		printf("la $s%d, __str%d\n", output.data.reg, current_string);
+	} else if(output.data.type == data_stack){
+		printf("la $t0, __str%d\n", current_string);
+		printf("sw $t0, %d($sp)\n", -(int) output.data.stack_pos);
+	}
+	current_string++;
+	output.data_type = CHAR_TYPE;
+	add_type_entry(&(output.data_type), type_pointer);
+	output.is_reference = 0;
+
+	return output;
+}
+
 value compile_value(char **c, unsigned char dereference, unsigned char force_stack){
 	value output;
 	skip_whitespace(c);
+
+	if(**c == '\"'){
+		return compile_string(c, dereference, force_stack);
+	}
 
 	if(**c == '*'){
 		++*c;
