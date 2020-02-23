@@ -8,7 +8,7 @@ dictionary local_variables;
 dictionary global_variables;
 unsigned int num_labels = 0;
 unsigned int current_string = 0;
-unsigned int order_of_operations[] = {0, 6, 6, 7, 7, 1, 5, 5, 4, 3, 2};
+unsigned int order_of_operations[] = {0, 6, 6, 7, 7, 1, 5, 5, 4, 4, 3, 2};
 
 type operation_none_func(char *reg_a, char *reg_b, value value_a, value value_b){
 	fprintf(stderr, "Unrecognized operation\n");
@@ -191,6 +191,34 @@ type operation_equals_func(char *reg_a, char *reg_b, value value_a, value value_
 	}
 }
 
+type operation_not_equals_func(char *reg_a, char *reg_b, value value_a, value value_b){
+	if(peek_type(value_a.data_type) == type_function || peek_type(value_b.data_type) == type_function){
+		fprintf(stderr, "Error: cannot compare function types\n");
+		exit(1);
+	}
+	if(peek_type(value_a.data_type) == type_pointer){
+		if(peek_type(value_b.data_type) == type_pointer){
+			pop_type(&(value_a.data_type));
+			pop_type(&(value_b.data_type));
+			if(!types_equal(value_a.data_type, value_b.data_type)){
+				fprintf(stderr, "Warning: comparing incompatible data types\n");
+			}
+			printf("sne %s, %s, %s\n", reg_a, reg_a, reg_b);
+			return INT_TYPE;
+		} else {
+			fprintf(stderr, "Warning: comparing pointer and non-pointer types\n");
+			printf("sne %s, %s, %s\n", reg_a, reg_a, reg_b);
+			return INT_TYPE;
+		}
+	} else {
+		if(peek_type(value_b.data_type) == type_pointer){
+			fprintf(stderr, "Warning: comparing pointer and non-pointer types\n");
+		}
+		printf("sne %s, %s, %s\n", reg_a, reg_a, reg_b);
+		return INT_TYPE;
+	}
+}
+
 type operation_and_func(char *reg_a, char *reg_b, value value_a, value value_b){
 	if((!types_equal(value_a.data_type, INT_TYPE) && !types_equal(value_a.data_type, CHAR_TYPE)) || (!types_equal(value_b.data_type, INT_TYPE) && !types_equal(value_b.data_type, CHAR_TYPE))){
 		fprintf(stderr, "Error: cannot '&' non-int types\n");
@@ -209,7 +237,7 @@ type operation_or_func(char *reg_a, char *reg_b, value value_a, value value_b){
 	return INT_TYPE;
 }
 
-type (*operation_functions[])(char *, char *, value, value) = {operation_none_func, operation_add_func, operation_subtract_func, operation_multiply_func, operation_divide_func, operation_assign_func, operation_less_than_func, operation_greater_than_func, operation_equals_func, operation_and_func, operation_or_func};
+type (*operation_functions[])(char *, char *, value, value) = {operation_none_func, operation_add_func, operation_subtract_func, operation_multiply_func, operation_divide_func, operation_assign_func, operation_less_than_func, operation_greater_than_func, operation_equals_func, operation_not_equals_func, operation_and_func, operation_or_func};
 
 int type_size(type t){
 	switch(pop_type(&t)){
@@ -712,8 +740,62 @@ value compile_string(char **c, unsigned char dereference, unsigned char force_st
 	return output;
 }
 
+value compile_logical_not(value v){
+	if(!types_equal(v.data_type, INT_TYPE) && !types_equal(v.data_type, CHAR_TYPE)){
+		fprintf(stderr, "Error: Can't perform logical not of non-numerical type\n");
+		exit(1);
+	}
+	if(v.data.type == data_register){
+		printf("seq $s%d, $s%d, $zero\n", v.data.reg, v.data.reg);
+	} else if(v.data.type == data_stack){
+		printf("lw $t0, %d($sp)\n", -(int) v.data.stack_pos);
+		printf("seq $t0, $t0, $zero\n");
+		printf("sw $t0, %d($sp)\n", -(int) v.data.stack_pos);
+	}
+
+	v.data_type = INT_TYPE;
+	return v;
+}
+
+value compile_not(value v){
+	if(!types_equal(v.data_type, INT_TYPE) && !types_equal(v.data_type, CHAR_TYPE)){
+		fprintf(stderr, "Error: Can't perform bitwise not of non-numerical type\n");
+		exit(1);
+	}
+	if(v.data.type == data_register){
+		printf("seq $s%d, $s%d, $s%d\n", v.data.reg, v.data.reg, v.data.reg);
+	} else if(v.data.type == data_stack){
+		printf("lw $t0, %d($sp)\n", -(int) v.data.stack_pos);
+		printf("nor $t0, $t0, $t0\n");
+		printf("sw $t0, %d($sp)\n", -(int) v.data.stack_pos);
+	}
+
+	v.data_type = INT_TYPE;
+	return v;
+}
+
+value compile_negate(value v){
+	if(!types_equal(v.data_type, INT_TYPE) && !types_equal(v.data_type, CHAR_TYPE)){
+		fprintf(stderr, "Error: Can't negate non-numerical type\n");
+		exit(1);
+	}
+	if(v.data.type == data_register){
+		printf("sub $s%d, $zero, $s%d\n", v.data.reg, v.data.reg);
+	} else if(v.data.type == data_stack){
+		printf("lw $t0, %d($sp)\n", -(int) v.data.stack_pos);
+		printf("sub $t0, $zero, $t0\n");
+		printf("sw $t0, %d($sp)\n", -(int) v.data.stack_pos);
+	}
+
+	v.data_type = INT_TYPE;
+	return v;
+}
+
 value compile_value(char **c, unsigned char dereference, unsigned char force_stack){
 	value output;
+	char *temp_c;
+	type cast_type;
+
 	skip_whitespace(c);
 
 	if(**c == '\"'){
@@ -738,17 +820,64 @@ value compile_value(char **c, unsigned char dereference, unsigned char force_sta
 		}
 		output.is_reference = 0;
 		return output;
+	} else if(**c == '!'){
+		++*c;
+		if(dereference){
+			output = compile_logical_not(compile_value(c, 1, force_stack));
+		} else {
+			fprintf(stderr, "Can't get address of r-value\n");
+			exit(1);
+		}
+		output.is_reference = 0;
+		return output;
+	} else if(**c == '~'){
+		++*c;
+		if(dereference){
+			output = compile_not(compile_value(c, 1, force_stack));
+		} else {
+			fprintf(stderr, "Can't get address of r-value\n");
+			exit(1);
+		}
+		output.is_reference = 0;
+		return output;
+	} else if(**c == '-'){
+		++*c;
+		if(dereference){
+			output = compile_negate(compile_value(c, 1, force_stack));
+		} else {
+			fprintf(stderr, "Can't get address of r-value\n");
+		}
+		output.is_reference = 0;
+		return output;
 	}
 
 	skip_whitespace(c);
 
 	if(**c == '('){
 		++*c;
-		output = compile_expression(c, dereference, force_stack);
-		if(**c == ')'){
+		skip_whitespace(c);
+		temp_c = *c;
+		//Type casting
+		if(parse_datatype(NULL, &temp_c)){
+			if(!dereference){
+				fprintf(stderr, "Can't get address of r-value\n");
+				exit(1);
+			}
+			parse_type(&cast_type, c, NULL, NULL, 0, 0);
+			if(**c != ')'){
+				fprintf(stderr, "Error: Expected ')'\n");
+				exit(1);
+			}
 			++*c;
+			return cast(compile_value(c, 1, force_stack), cast_type);
+		//Associative parentheses
 		} else {
-			fprintf(stderr, "Expected closing ')'\n");
+			output = compile_expression(c, dereference, force_stack);
+			if(**c == ')'){
+				++*c;
+			} else {
+				fprintf(stderr, "Expected closing ')'\n");
+			}
 		}
 	} else if(**c == '-' || digit(**c)){
 		output = compile_integer(c, dereference, force_stack);
@@ -798,6 +927,12 @@ operation peek_operation(char *c){
 			} else {
 				return operation_assign;
 			}
+		case '!':
+			if(c[1] == '='){
+				return operation_not_equals;
+			} else {
+				return operation_none;
+			}
 		case '>':
 			return operation_greater_than;
 		case '<':
@@ -834,6 +969,14 @@ operation get_operation(char **c){
 				++*c;
 			} else {
 				output = operation_assign;
+			}
+			break;
+		case '!':
+			if((*c)[1] == '='){
+				output = operation_not_equals;
+				++*c;
+			} else {
+				output = operation_none;
 			}
 			break;
 		case '>':

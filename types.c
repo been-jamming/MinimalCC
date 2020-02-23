@@ -4,10 +4,10 @@
 #include <string.h>
 #include "types.h"
 
-type INT_TYPE = (type) {.d0 = 0, .d1 = 1, .d2 = 0};
-type VOID_TYPE = (type) {.d0 = 1, .d1 = 0, .d2 = 0};
-type CHAR_TYPE = (type) {.d0 = 1, .d1 = 1, .d2 = 0};
-type EMPTY_TYPE = (type) {.d0 = 0, .d1 = 0, .d2 = 0};
+const type INT_TYPE = (type) {.d0 = 0, .d1 = 1, .d2 = 0};
+const type VOID_TYPE = (type) {.d0 = 1, .d1 = 0, .d2 = 0};
+const type CHAR_TYPE = (type) {.d0 = 1, .d1 = 1, .d2 = 0};
+const type EMPTY_TYPE = (type) {.d0 = 0, .d1 = 0, .d2 = 0};
 
 unsigned char alpha(char c){
 	return (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || c == '_';
@@ -97,7 +97,7 @@ unsigned char parse_identifier(char **c, char *identifier_name, unsigned int ide
 	}
 
 	while(alphanumeric(**c)){
-		if(identifier_length){
+		if(identifier_length && identifier_name){
 			*identifier_name = **c;
 			identifier_name++;
 			identifier_length--;
