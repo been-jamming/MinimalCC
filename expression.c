@@ -240,32 +240,23 @@ void free_var(void *v){
 }
 
 void free_local_variables(){
-	iterate_dictionary(local_variables, free_var);
+	free_dictionary(local_variables, free_var);
+	initialize_variables();
 	variables_size = 0;
 }
 
 void free_global_variables(){
-	iterate_dictionary(global_variables, free_var);
+	free_dictionary(global_variables, free_var);
 }
 
 void compile_variable_initializer(char **c){
 	variable *var;
 	char *varname;
-	unsigned int tsize;
-	unsigned int remainder;
 
 	var = malloc(sizeof(variable));
 	varname = malloc(sizeof(char)*32);
 	parse_type(&(var->var_type), c, varname, NULL, 32, 0);
 	var->varname = varname;
-
-	//Gotta make sure that the data stays aligned, but still want to pack char arguments
-	tsize = type_size(var->var_type);
-	remainder = variables_size%tsize;
-	if(remainder){
-		variables_size += tsize - remainder;
-	}
-
 	var->stack_pos = variables_size;
 	variables_size += type_size(var->var_type);
 	write_dictionary(&local_variables, var->varname, var, 0);
@@ -285,7 +276,7 @@ value compile_integer(char **c, unsigned char dereference, unsigned char force_s
 		fprintf(stderr, "Cannot take address of r-value\n");
 		exit(1);
 	}
-	output.data = allocate(INT_SIZE, force_stack, INT_SIZE);
+	output.data = allocate(force_stack);
 	int_value = strtol(*c, c, 10);
 	if(output.data.type == data_register){
 		printf("li $s%d, %d\n", (int) output.data.reg, int_value);
@@ -303,7 +294,7 @@ static value compile_local_variable(variable *var, unsigned char dereference, un
 	value output;
 
 	data_type = var->var_type;
-	data = allocate(type_size(data_type), force_stack, type_size(data_type));
+	data = allocate(force_stack);
 	output.data_type = data_type;
 	output.data = data;
 	if(dereference){
@@ -348,7 +339,7 @@ static value compile_global_variable(variable *var, unsigned char dereference, u
 	value output;
 
 	data_type = var->var_type;
-	data = allocate(type_size(data_type), force_stack, type_size(data_type));
+	data = allocate(force_stack);
 	if(data.type == data_register){
 		printf("la $s%d, %s\n", data.reg, var->varname);
 	} else {
@@ -492,8 +483,8 @@ value compile_function_call(char **c, value func){
 	if(func.data.type == data_register){
 		func_stack_pos = get_reg_stack_pos(reg_state, func.data.reg);
 	}
-	return_address_data = allocate(POINTER_SIZE, 1, POINTER_SIZE);
-	return_data = allocate(INT_SIZE, 1, INT_SIZE);//INT is the largest possible size
+	return_address_data = allocate(1);
+	return_data = allocate(1);
 	printf("la $t0, __L%d\n", label_num);
 	printf("sw $t0, %d($sp)\n", -(int) return_address_data.stack_pos);
 	if(peek_type(func.data_type) == type_returns){

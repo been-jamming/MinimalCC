@@ -15,28 +15,25 @@ void initialize_register_list(){
 	}
 }
 
-data_entry allocate(unsigned int num_bytes, unsigned char force_stack, unsigned int alignment){
+//For now, it's impossible to allocate anything but 4 bytes on the stack
+//This is because I need to be able to cast values which are on the stack
+//Doing so without everything aligned on the stack would require me to
+//Know in advance if I need to give space around a value on the stack to
+//allow it to be cast and replaced in the same spot.
+data_entry allocate(unsigned char force_stack){
 	data_entry output;
-	unsigned int remainder;
 
-	if(force_stack || num_bytes > REGISTER_SIZE || register_list.num_allocated >= NUM_REGISTERS){
+	if(force_stack || register_list.num_allocated >= NUM_REGISTERS){
 		output.type = data_stack;
 		output.prev_stack_size = stack_size;
-		remainder = stack_size%alignment;
-		if(!remainder){
-			output.stack_pos = stack_size;
-			stack_size += num_bytes;
-		} else {
-			output.stack_pos = stack_size + alignment - remainder;
-			stack_size += alignment - remainder + num_bytes;
-		}
+		output.stack_pos = stack_size;
+		stack_size += 4;
 	} else {
 		output.type = data_register;
 		output.reg = register_list.num_allocated;
 		register_list.num_allocated++;
 	}
 
-	output.num_bytes = num_bytes;
 	return output;
 }
 

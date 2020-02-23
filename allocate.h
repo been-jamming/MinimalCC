@@ -25,7 +25,6 @@ struct data_entry{
 		unsigned int reg;
 		unsigned int stack_pos;
 	};
-	unsigned int num_bytes;
 	unsigned int prev_stack_size;
 };
 
@@ -34,7 +33,7 @@ extern unsigned int variables_size;
 reg_list register_list;
 
 void initialize_register_list();
-data_entry allocate(unsigned int num_bytes, unsigned char force_stack, unsigned int alignment);
+data_entry allocate(unsigned char force_stack);
 void deallocate(data_entry entry);
 reg_list push_registers();
 int get_reg_stack_pos(reg_list regs, unsigned char reg);

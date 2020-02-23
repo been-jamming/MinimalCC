@@ -28,8 +28,6 @@ void compile_function(char **c, char *identifier_name, char *arguments, unsigned
 	variable *var;
 	variable *local_var;
 	unsigned int current_argument = 0;
-	unsigned int tsize;
-	unsigned int remainder;
 
 	num_vars = 0;
 	parse_type(&t, c, identifier_name, arguments, identifier_length, num_arguments);
@@ -90,17 +88,11 @@ void compile_function(char **c, char *identifier_name, char *arguments, unsigned
 			argument_type = get_argument_type(&t);
 			local_var = malloc(sizeof(variable));
 			local_var->var_type = argument_type;
-			tsize = type_size(argument_type);
-			remainder = variables_size%tsize;
-			if(remainder){
-				variables_size += tsize - remainder;
-			}
-
 			local_var->varname = malloc(strlen(arguments) + 1);
 			strcpy(local_var->varname, arguments);
 			local_var->stack_pos = variables_size;
 			write_dictionary(&local_variables, local_var->varname, local_var, 0);
-			variables_size += type_size(local_var->var_type);
+			variables_size += 4;
 			arguments += identifier_length;
 			current_argument++;
 			num_vars++;
@@ -118,7 +110,6 @@ void compile_function(char **c, char *identifier_name, char *arguments, unsigned
 
 void compile_block(char **c, unsigned char do_variable_initializers){
 	char *temp;
-	unsigned int remainder;
 
 	skip_whitespace(c);
 	temp = *c;
@@ -129,11 +120,6 @@ void compile_block(char **c, unsigned char do_variable_initializers){
 		num_vars++;
 	}
 
-	//Gotta make sure the stack pointer itself stays aligned to integers
-	remainder = variables_size%INT_SIZE;
-	if(remainder){
-		variables_size += INT_SIZE - remainder;
-	}
 	if(do_variable_initializers){
 		printf("addi $sp, $sp, %d\n", -(int) variables_size - 8);
 	}
