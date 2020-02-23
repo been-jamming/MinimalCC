@@ -540,7 +540,7 @@ value compile_list_index(char **c, value address, unsigned char dereference){
 	type address_type;
 
 	address_type = address.data_type;
-	if(peek_type(address_type) != type_pointer){
+	if(pop_type(&address_type) != type_pointer){
 		fprintf(stderr, "Cannot address non-pointer type\n");
 		exit(1);
 	}
