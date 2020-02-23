@@ -741,10 +741,6 @@ value compile_string(char **c, unsigned char dereference, unsigned char force_st
 }
 
 value compile_logical_not(value v){
-	if(!types_equal(v.data_type, INT_TYPE) && !types_equal(v.data_type, CHAR_TYPE)){
-		fprintf(stderr, "Error: Can't perform logical not of non-numerical type\n");
-		exit(1);
-	}
 	if(v.data.type == data_register){
 		printf("seq $s%d, $s%d, $zero\n", v.data.reg, v.data.reg);
 	} else if(v.data.type == data_stack){
