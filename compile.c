@@ -106,8 +106,8 @@ void compile_function(char **c, char *identifier_name, char *arguments, unsigned
 		compile_block(c, 1);
 		++*c;
 		var->num_args = num_vars;
-		printf("lw $ra, %d($sp)\n", variables_size + 8);
 		printf("addi $sp, $sp, %d\n", variables_size + 8);
+		printf("lw $ra, 0($sp)\n");
 		printf("jr $ra\n");
 	}
 }
@@ -220,22 +220,30 @@ void compile_statement(char **c){
 	} else if(!strncmp(*c, "return", 6) && !alphanumeric((*c)[6])){
 		*c += 6;
 		skip_whitespace(c);
-		expression_output = compile_expression(c, 1, 0);
-		if(**c != ';'){
-			fprintf(stderr, "Expected ';'\n");
-			exit(1);
+		if(types_equal(return_type, VOID_TYPE)){
+			if(**c != ';'){
+				fprintf(stderr, "Expected ';' for return in void function\n");
+				exit(1);
+			}
+			++*c;
+		} else {
+			expression_output = compile_expression(c, 1, 0);
+			if(**c != ';'){
+				fprintf(stderr, "Expected ';'\n");
+				exit(1);
+			}
+			++*c;
+			cast(expression_output, return_type, 1);
+			if(expression_output.data.type == data_register){
+				printf("sw $s%d, %d($sp)\n", expression_output.data.reg, variables_size + 4);
+			} else if(expression_output.data.type == data_stack){
+				printf("lw $t0, %d($sp)\n", -(int) expression_output.data.stack_pos);
+				printf("sw $t0, %d($sp)\n", variables_size + 4);
+			}
+			deallocate(expression_output.data);
 		}
-		++*c;
-		cast(expression_output, return_type);
-		if(expression_output.data.type == data_register){
-			printf("sw $s%d, %d($sp)\n", expression_output.data.reg, variables_size + 4);
-		} else if(expression_output.data.type == data_stack){
-			printf("lw $t0, %d($sp)\n", -(int) expression_output.data.stack_pos);
-			printf("sw $t0, %d($sp)\n", variables_size + 4);
-		}
-		deallocate(expression_output.data);
-		printf("lw $ra, %d($sp)\n", variables_size + 8);
 		printf("addi $sp, $sp, %d\n", variables_size + 8);
+		printf("lw $ra, 0($sp)\n");
 		printf("jr $ra\n");
 	} else {
 		expression_output = compile_expression(c, 1, 0);

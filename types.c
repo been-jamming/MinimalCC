@@ -320,17 +320,3 @@ static void parse_type_recursive(type *t, char **c, char *identifier_name, char 
 	append_type(t, inner_type);
 }
 
-/*
-int main(){
-	char *test_type = "int *(*test)(int (*)(char), char *);";
-	type t = (type) {.d0 = 0, .d1 = 0, .d2 = 0};
-	char buffer[32] = {0};
-
-	parse_type(&t, &test_type, buffer, 32);
-	printf("%s is a ", buffer);
-	print_type(t);
-	printf("\n");
-
-	return 0;
-}
-*/

@@ -145,7 +145,7 @@ type operation_assign_func(char *reg_a, char *reg_b, value value_a, value value_
 		exit(1);
 	}
 	pop_type(&(value_a.data_type));
-	cast(value_b, value_a.data_type);
+	cast(value_b, value_a.data_type, 1);
 	if(type_size(value_a.data_type) == 4){
 		printf("sw %s, 0(%s)\n", reg_b, reg_a);
 	} else if(type_size(value_a.data_type) == 1){
@@ -434,8 +434,13 @@ value compile_variable(char **c, unsigned char dereference, unsigned char force_
 
 value compile_expression(char **c, unsigned char dereference, unsigned char force_stack);
 
-value cast(value v, type t){
+value cast(value v, type t, unsigned char do_warn){
 	type t_copy;
+
+	if(types_equal(v.data_type, VOID_TYPE) && !types_equal(t, VOID_TYPE)){
+		fprintf(stderr, "Can't cast void type to non-void type\n");
+		exit(1);
+	}
 
 	if(type_size(v.data_type) == 4 && type_size(t) == 1){
 		if(v.data.type == data_register){
@@ -455,7 +460,7 @@ value cast(value v, type t){
 	}
 
 	t_copy = t;
-	if((pop_type(&t_copy) == type_pointer) != (pop_type(&(v.data_type)) == type_pointer)){
+	if((pop_type(&t_copy) == type_pointer) != (pop_type(&(v.data_type)) == type_pointer) && do_warn){
 		fprintf(stderr, "Warning: casting between pointer and non-pointer types\n");
 	}
 
@@ -545,7 +550,7 @@ value compile_function_call(char **c, value func){
 			exit(1);
 		}
 		++*c;
-		current_argument_value = cast(current_argument_value, current_argument_type);
+		current_argument_value = cast(current_argument_value, current_argument_type, 1);
 	}
 
 	pop_type(&(func.data_type));
@@ -589,7 +594,7 @@ value compile_list_index(char **c, value address, unsigned char dereference){
 		exit(1);
 	}
 	++*c;
-	index = cast(index, INT_TYPE);
+	index = cast(index, INT_TYPE, 1);
 	if(index.data.type == data_register){
 		if(type_size(address_type) == 4){
 			printf("sll $s%d, $s%d, 2\n", index.data.reg, index.data.reg);
@@ -846,12 +851,13 @@ value compile_value(char **c, unsigned char dereference, unsigned char force_sta
 		}
 		output.is_reference = 0;
 		return output;
-	} else if(**c == '-'){
+	} else if(**c == '-' && !digit((*c)[1])){
 		++*c;
 		if(dereference){
 			output = compile_negate(compile_value(c, 1, force_stack));
 		} else {
 			fprintf(stderr, "Can't get address of r-value\n");
+			exit(1);
 		}
 		output.is_reference = 0;
 		return output;
@@ -869,13 +875,14 @@ value compile_value(char **c, unsigned char dereference, unsigned char force_sta
 				fprintf(stderr, "Can't get address of r-value\n");
 				exit(1);
 			}
+			cast_type = EMPTY_TYPE;
 			parse_type(&cast_type, c, NULL, NULL, 0, 0);
 			if(**c != ')'){
 				fprintf(stderr, "Error: Expected ')'\n");
 				exit(1);
 			}
 			++*c;
-			return cast(compile_value(c, 1, force_stack), cast_type);
+			return cast(compile_value(c, 1, force_stack), cast_type, 0);
 		//Associative parentheses
 		} else {
 			output = compile_expression(c, dereference, force_stack);
@@ -1022,6 +1029,11 @@ value compile_operation(value first_value, value next_value, operation op, unsig
 		exit(1);
 	}
 
+	if(types_equal(first_value.data_type, VOID_TYPE) || types_equal(next_value.data_type, VOID_TYPE)){
+		fprintf(stderr, "Can't operate on void value\n");
+		exit(1);
+	}
+
 	if(first_value.data.type == data_register){
 		snprintf(reg0_str_buffer, sizeof(reg0_str_buffer)/sizeof(char), "$s%d", first_value.data.reg);
 		reg0_str = reg0_str_buffer;
@@ -1033,6 +1045,7 @@ value compile_operation(value first_value, value next_value, operation op, unsig
 			printf("lb $t0, %d($sp)\n", -(int) first_value.data.stack_pos);
 		} else {
 			fprintf(stderr, "Unusable type size %d\n", type_size(first_value.data_type));
+			exit(1);
 		}
 	}
 	if(next_value.data.type == data_register){
@@ -1046,6 +1059,7 @@ value compile_operation(value first_value, value next_value, operation op, unsig
 			printf("lb $t1, %d($sp)\n", -(int) next_value.data.stack_pos);
 		} else {
 			fprintf(stderr, "Unusable type size %d\n", type_size(next_value.data_type));
+			exit(1);
 		}
 	}
 	output_type = operation_functions[op](reg0_str, reg1_str, first_value, next_value);
@@ -1057,6 +1071,7 @@ value compile_operation(value first_value, value next_value, operation op, unsig
 			printf("sw $t0, %d($sp)\n", -(int) first_value.data.stack_pos);
 		} else {
 			fprintf(stderr, "Unusable type size %d\n", type_size(output_type));
+			exit(1);
 		}
 	}
 	first_value.data_type = output_type;
@@ -1112,14 +1127,4 @@ value compile_expression(char **c, unsigned char dereference, unsigned char forc
 	}
 	return compile_expression_recursive(first_value, c, dereference);
 }
-/*
-int main(){
-	char *t0 = "int (*test)(int, int);";
-	char *t1 = "int *test2;";
-	char *t2 = "test2[test(1,2)] = 1;";
-	initialize_variables();
-	initialize_register_list();
-	compile_variable_initializer(&t0);
-	compile_variable_initializer(&t1);
-	compile_expression(&t2, 1, 0);
-}*/
+

@@ -54,6 +54,6 @@ extern unsigned int num_labels;
 int type_size(type t);
 void initialize_variables();
 void compile_variable_initializer(char **c);
-value cast(value v, type t);
+value cast(value v, type t, unsigned char do_warn);
 value compile_expression(char **c, unsigned char dereference, unsigned char force_stack);
 
