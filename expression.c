@@ -8,7 +8,7 @@ dictionary local_variables;
 dictionary global_variables;
 unsigned int num_labels = 0;
 unsigned int current_string = 0;
-unsigned int order_of_operations[] = {0, 6, 6, 7, 7, 1, 5, 5, 4, 4, 3, 2};
+unsigned int order_of_operations[] = {0, 6, 6, 7, 7, 1, 5, 5, 4, 4, 3, 2, 7};
 
 type operation_none_func(char *reg_a, char *reg_b, value value_a, value value_b){
 	fprintf(stderr, "Unrecognized operation\n");
@@ -129,6 +129,16 @@ type operation_divide_func(char *reg_a, char *reg_b, value value_a, value value_
 	return INT_TYPE;
 }
 
+type operation_modulo_func(char *reg_a, char *reg_b, value value_a, value value_b){
+	if((!types_equal(value_a.data_type, INT_TYPE) && !types_equal(value_a.data_type, CHAR_TYPE)) || (!types_equal(value_b.data_type, INT_TYPE) && !types_equal(value_b.data_type, CHAR_TYPE))){
+		fprintf(stderr, "Error: cannot divide non-int types\n");
+		exit(1);
+	}
+	printf("div %s, %s\n", reg_a, reg_b);
+	printf("mfhi %s\n", reg_a);
+	return INT_TYPE;
+}
+
 type operation_assign_func(char *reg_a, char *reg_b, value value_a, value value_b){
 	if(!value_a.is_reference){
 		fprintf(stderr, "Cannot assign to r-value\n");
@@ -237,7 +247,7 @@ type operation_or_func(char *reg_a, char *reg_b, value value_a, value value_b){
 	return INT_TYPE;
 }
 
-type (*operation_functions[])(char *, char *, value, value) = {operation_none_func, operation_add_func, operation_subtract_func, operation_multiply_func, operation_divide_func, operation_assign_func, operation_less_than_func, operation_greater_than_func, operation_equals_func, operation_not_equals_func, operation_and_func, operation_or_func};
+type (*operation_functions[])(char *, char *, value, value) = {operation_none_func, operation_add_func, operation_subtract_func, operation_multiply_func, operation_divide_func, operation_assign_func, operation_less_than_func, operation_greater_than_func, operation_equals_func, operation_not_equals_func, operation_and_func, operation_or_func, operation_modulo_func};
 
 int type_size(type t){
 	switch(pop_type(&t)){
@@ -917,6 +927,8 @@ operation peek_operation(char *c){
 			return operation_multiply;
 		case '/':
 			return operation_divide;
+		case '%':
+			return operation_modulo;
 		case '=':
 			if(c[1] == '='){
 				return operation_equals;
@@ -958,6 +970,9 @@ operation get_operation(char **c){
 			break;
 		case '/':
 			output = operation_divide;
+			break;
+		case '%':
+			output = operation_modulo;
 			break;
 		case '=':
 			if((*c)[1] == '='){
