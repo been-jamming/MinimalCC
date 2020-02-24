@@ -4,10 +4,10 @@
 #include <string.h>
 #include "types.h"
 
-const type INT_TYPE = (type) {.d0 = 0, .d1 = 1, .d2 = 0};
-const type VOID_TYPE = (type) {.d0 = 1, .d1 = 0, .d2 = 0};
-const type CHAR_TYPE = (type) {.d0 = 1, .d1 = 1, .d2 = 0};
-const type EMPTY_TYPE = (type) {.d0 = 0, .d1 = 0, .d2 = 0};
+const type INT_TYPE = (type) {.d0 = 0, .d1 = 1, .d2 = 0, .list_indicies = {0}, .current_index = 0};
+const type VOID_TYPE = (type) {.d0 = 1, .d1 = 0, .d2 = 0, .list_indicies = {0}, .current_index = 0};
+const type CHAR_TYPE = (type) {.d0 = 1, .d1 = 1, .d2 = 0, .list_indicies = {0}, .current_index = 0};
+const type EMPTY_TYPE = (type) {.d0 = 0, .d1 = 0, .d2 = 0, .list_indicies = {0}, .current_index = 0};
 
 unsigned char alpha(char c){
 	return (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || c == '_';
@@ -85,6 +85,11 @@ void append_type(type *t, type d){
 	t->d0 = (t->d0<<shift_amount) | d.d0;
 	t->d1 = (t->d1<<shift_amount) | d.d1;
 	t->d2 = (t->d2<<shift_amount) | d.d2;
+	while(d.current_index){
+		d.current_index--;
+		t->list_indicies[t->current_index] = d.list_indicies[d.current_index];
+		t->current_index++;
+	}
 }
 
 unsigned char parse_identifier(char **c, char *identifier_name, unsigned int identifier_length){
@@ -235,6 +240,10 @@ void print_type(type t){
 			case type_returns:
 				printf(") returning ");
 				break;
+			case type_list:
+				t.current_index--;
+				printf("list of length %d of ", t.list_indicies[t.current_index]);
+				break;
 			default:
 				printf("unknown ");
 		}
@@ -286,7 +295,8 @@ void parse_type_arguments(type *t, char **c, char *argument_names, unsigned int 
 }
 
 static void parse_type_recursive(type *t, char **c, char *identifier_name, char *argument_names, unsigned int identifier_length, unsigned int num_arguments){
-	type inner_type = (type) {.d0 = 0, .d1 = 0, .d2 = 0};
+	type inner_type = EMPTY_TYPE;
+	type list_type = EMPTY_TYPE;
 
 	skip_whitespace(c);
 	while(**c == '*'){
@@ -315,8 +325,38 @@ static void parse_type_recursive(type *t, char **c, char *identifier_name, char 
 		parse_type_arguments(t, c, argument_names, identifier_length, num_arguments);
 		++*c;
 		add_type_entry(t, type_function);
+		if(**c == '(' || **c == '['){
+			fprintf(stderr, "Invalid type\n");
+			exit(1);
+		}
+	} else if(**c == '['){
+		while(**c == '['){
+			add_type_entry(&list_type, type_list);
+			++*c;
+			list_type.list_indicies[list_type.current_index] = strtol(*c, c, 10);
+			list_type.current_index++;
+			skip_whitespace(c);
+			if(**c != ']'){
+				fprintf(stderr, "Expected ']'\n");
+				exit(1);
+			}
+			++*c;
+		}
 	}
 
+
+	append_type(t, list_type);
 	append_type(t, inner_type);
 }
 
+int main(int argc, char **argv){
+	type t;
+	char *type_string = "int (*(*(*test)(void))[5])[6][7]\n";
+	char identifier_name[16];
+	char argument_names[16*16];
+
+	t = EMPTY_TYPE;
+	parse_type(&t, &type_string, identifier_name, argument_names, 16, 16);
+	print_type(t);
+	return 0;
+}
