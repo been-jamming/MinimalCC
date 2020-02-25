@@ -90,6 +90,11 @@ void compile_function(char **c, char *identifier_name, char *arguments, unsigned
 				exit(1);
 			}
 			argument_type = get_argument_type(&t);
+			if(peek_type(argument_type) == type_list){
+				pop_type(&argument_type);
+				argument_type.current_index--;
+				add_type_entry(&argument_type, type_pointer);
+			}
 			local_var = malloc(sizeof(variable));
 			local_var->var_type = argument_type;
 			local_var->varname = malloc(strlen(arguments) + 1);
@@ -103,6 +108,10 @@ void compile_function(char **c, char *identifier_name, char *arguments, unsigned
 		}
 		pop_type(&t);
 		return_type = t;
+		if(peek_type(return_type) == type_function){
+			fprintf(stderr, "Error: function cannot return function\n");
+			exit(1);
+		}
 		compile_block(c, 1);
 		++*c;
 		var->num_args = num_vars;

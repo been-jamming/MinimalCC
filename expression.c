@@ -48,8 +48,9 @@ type operation_add_func(char *reg_a, char *reg_b, value value_a, value value_b){
 	if(type_size(pointer_type) == 4){
 		printf("sll %s, %s, 2\n", integer_reg, integer_reg);
 	} else if(type_size(pointer_type) != 1){
-		fprintf(stderr, "Unrecognized type size: %d\n", type_size(pointer_type));
-		exit(1);
+		printf("li $t2, %d\n", type_size(pointer_type));
+		printf("mult %s, $t2\n", integer_reg);
+		printf("mflo %s\n", integer_reg);
 	}
 	printf("add %s, %s, %s\n", reg_a, reg_a, reg_b);
 
@@ -80,8 +81,9 @@ type operation_subtract_func(char *reg_a, char *reg_b, value value_a, value valu
 			if(type_size(pointer_type) == 4){
 				printf("sra %s, %s, 2\n", reg_a, reg_a);
 			} else if(type_size(pointer_type) != 1){
-				fprintf(stderr, "Unrecognized type size: %d\n", type_size(pointer_type));
-				exit(1);
+				printf("li $t2, %d\n", type_size(pointer_type));
+				printf("div %s, $t2\n", reg_a);
+				printf("mflo %s\n", reg_a);
 			}
 			return value_a.data_type;
 		}
@@ -240,7 +242,7 @@ type operation_and_func(char *reg_a, char *reg_b, value value_a, value value_b){
 
 type operation_or_func(char *reg_a, char *reg_b, value value_a, value value_b){
 	if((!types_equal(value_a.data_type, INT_TYPE) && !types_equal(value_a.data_type, CHAR_TYPE)) || (!types_equal(value_b.data_type, INT_TYPE) && !types_equal(value_b.data_type, CHAR_TYPE))){
-		fprintf(stderr, "Error: cannot '&' non-int types\n");
+		fprintf(stderr, "Error: cannot '|' non-int types\n");
 		exit(1);
 	}
 	printf("or %s, %s, %s\n", reg_a, reg_a, reg_b);
@@ -261,6 +263,9 @@ int type_size(type t){
 			return POINTER_SIZE;
 		case type_function:
 			return POINTER_SIZE;
+		case type_list:
+			t.current_index--;
+			return t.list_indicies[t.current_index]*type_size(t);
 	}
 
 	return 0;
@@ -288,6 +293,17 @@ void free_global_variables(){
 	free_dictionary(global_variables, free_var);
 }
 
+unsigned int align4(unsigned int size){
+	unsigned int remainder;
+
+	remainder = size%4;
+	if(remainder){
+		size += 4 - remainder;
+	}
+
+	return size;
+}
+
 void compile_variable_initializer(char **c){
 	variable *var;
 	char *varname;
@@ -297,7 +313,7 @@ void compile_variable_initializer(char **c){
 	parse_type(&(var->var_type), c, varname, NULL, 32, 0);
 	var->varname = varname;
 	var->stack_pos = variables_size;
-	variables_size += type_size(var->var_type);
+	variables_size += align4(type_size(var->var_type));
 	write_dictionary(&local_variables, var->varname, var, 0);
 	skip_whitespace(c);
 	if(**c != ';'){
@@ -327,6 +343,14 @@ value compile_integer(char **c, unsigned char dereference, unsigned char force_s
 	return output;
 }
 
+static unsigned int first_element_size(type t){
+	while(peek_type(t) == type_list){
+		pop_type(&t);
+	}
+
+	return type_size(t);
+}
+
 static value compile_local_variable(variable *var, unsigned char dereference, unsigned char force_stack){
 	data_entry data;
 	type data_type;
@@ -337,34 +361,55 @@ static value compile_local_variable(variable *var, unsigned char dereference, un
 	output.data_type = data_type;
 	output.data = data;
 	if(dereference){
-		if(data.type == data_register){
-			switch(type_size(data_type)){
-				case 1:
-					printf("lb $s%d, %d($sp)\n", data.reg, variables_size - var->stack_pos);
-					break;
-				case 4:
-					printf("lw $s%d, %d($sp)\n", data.reg, variables_size - var->stack_pos);
-					break;
-
+		if(peek_type(var->var_type) == type_list){
+			if(data.type == data_register){
+				printf("addi $s%d, $sp, %d\n", data.reg, variables_size - var->stack_pos - type_size(var->var_type) + first_element_size(var->var_type));
+			} else if(data.type == data_stack){
+				printf("addi $t0, $sp, %d\n", variables_size - var->stack_pos - type_size(var->var_type) + first_element_size(var->var_type));
+				printf("sw $t0, %d($sp)\n", -(int) data.stack_pos);
 			}
-		} else if(data.type == data_stack){
-			switch(type_size(data_type)){
-				case 1:
-					printf("lb $t0, %d($sp)\n", variables_size - var->stack_pos);
-					printf("sb $t0, %d($sp)\n", -(int) data.stack_pos);
-					break;
-				case 4:
-					printf("lw $t0, %d($sp)\n", variables_size - var->stack_pos);
-					printf("sw $t0, %d($sp)\n", -(int) data.stack_pos);
-					break;
+			pop_type(&(output.data_type));
+			output.data_type.current_index--;
+			add_type_entry(&(output.data_type), type_pointer);
+		} else {
+			if(data.type == data_register){
+				switch(type_size(data_type)){
+					case 1:
+						printf("lb $s%d, %d($sp)\n", data.reg, variables_size - var->stack_pos);
+						break;
+					case 4:
+						printf("lw $s%d, %d($sp)\n", data.reg, variables_size - var->stack_pos);
+						break;
+
+				}
+			} else if(data.type == data_stack){
+				switch(type_size(data_type)){
+					case 1:
+						printf("lb $t0, %d($sp)\n", variables_size - var->stack_pos);
+						printf("sb $t0, %d($sp)\n", -(int) data.stack_pos);
+						break;
+					case 4:
+						printf("lw $t0, %d($sp)\n", variables_size - var->stack_pos);
+						printf("sw $t0, %d($sp)\n", -(int) data.stack_pos);
+						break;
+				}
 			}
 		}
 	} else {
-		if(data.type == data_register){
-			printf("addi $s%d, $sp, %d\n", data.reg, variables_size - var->stack_pos);
-		} else if(data.type == data_stack){
-			printf("addi $t0, $sp, %d\n", variables_size - var->stack_pos);
-			printf("sw $t0, %d($sp)\n", -(int) data.stack_pos);
+		if(peek_type(var->var_type) == type_list){
+			if(data.type == data_register){
+				printf("addi $s%d, $sp, %d\n", data.reg, variables_size - var->stack_pos - type_size(var->var_type) + first_element_size(var->var_type));
+			} else if(data.type == data_stack){
+				printf("addi $t0, $sp, %d\n", variables_size - var->stack_pos - type_size(var->var_type) + first_element_size(var->var_type));
+				printf("sw $t0, %d($sp)\n", -(int) data.stack_pos);
+			}
+		} else {
+			if(data.type == data_register){
+				printf("addi $s%d, $sp, %d\n", data.reg, variables_size - var->stack_pos);
+			} else if(data.type == data_stack){
+				printf("addi $t0, $sp, %d\n", variables_size - var->stack_pos);
+				printf("sw $t0, %d($sp)\n", -(int) data.stack_pos);
+			}
 		}
 		add_type_entry(&(output.data_type), type_pointer);
 	}
@@ -387,11 +432,17 @@ static value compile_global_variable(variable *var, unsigned char dereference, u
 	output.data = data;
 	output.is_reference = !dereference;
 	if(dereference && !var->leave_as_address){
-		if(data.type == data_register){
-			printf("lw $s%d, 0($s%d)\n", data.reg, data.reg);
+		if(peek_type(data_type) == type_list){
+			pop_type(&data_type);
+			data_type.current_index--;
+			add_type_entry(&data_type, type_pointer);
 		} else {
-			printf("lw $t0, 0($t0)\n");
-			printf("sw $t0, %d($sp)\n", -(int) data.stack_pos);
+			if(data.type == data_register){
+				printf("lw $s%d, 0($s%d)\n", data.reg, data.reg);
+			} else {
+				printf("lw $t0, 0($t0)\n");
+				printf("sw $t0, %d($sp)\n", -(int) data.stack_pos);
+			}
 		}
 	} else {
 		add_type_entry(&data_type, type_pointer);
@@ -442,6 +493,11 @@ value cast(value v, type t, unsigned char do_warn){
 		exit(1);
 	}
 
+	if(peek_type(t) == type_list){
+		fprintf(stderr, "Can't cast to an array\n");
+		exit(1);
+	}
+
 	if(type_size(v.data_type) == 4 && type_size(t) == 1){
 		if(v.data.type == data_register){
 			printf("sll $s%d, $s%d, 24\n", v.data.reg, v.data.reg);
@@ -480,20 +536,26 @@ value compile_dereference(value v){
 		fprintf(stderr, "Cannot dereference void pointer\n");
 		exit(1);
 	}
-	if(v.data.type == data_register){
-		if(type_size(data_type) == 1){
-			printf("lb $s%d, 0($s%d)\n", v.data.reg, v.data.reg);
-		} else if(type_size(data_type) == 4){
-			printf("lw $s%d, 0($s%d)\n", v.data.reg, v.data.reg);
-		}
-	} else if(v.data.type == data_stack){
-		printf("lw $t0, %d($sp)\n", -(int) v.data.stack_pos);
-		if(type_size(data_type) == 1){
-			printf("lb $t0, 0($t0)\n");
-			printf("sb $t0, %d($sp)\n", -(int) v.data.stack_pos);
-		} else if(type_size(data_type) == 4){
-			printf("lw $t0, 0($t0)\n");
-			printf("sw $t0, %d($sp)\n", -(int) v.data.stack_pos);
+	if(peek_type(data_type) == type_list){
+		pop_type(&data_type);
+		data_type.current_index--;
+		add_type_entry(&data_type, type_pointer);
+	} else if(peek_type(data_type) != type_function){
+		if(v.data.type == data_register){
+			if(type_size(data_type) == 1){
+				printf("lb $s%d, 0($s%d)\n", v.data.reg, v.data.reg);
+			} else if(type_size(data_type) == 4){
+				printf("lw $s%d, 0($s%d)\n", v.data.reg, v.data.reg);
+			}
+		} else if(v.data.type == data_stack){
+			printf("lw $t0, %d($sp)\n", -(int) v.data.stack_pos);
+			if(type_size(data_type) == 1){
+				printf("lb $t0, 0($t0)\n");
+				printf("sb $t0, %d($sp)\n", -(int) v.data.stack_pos);
+			} else if(type_size(data_type) == 4){
+				printf("lw $t0, 0($t0)\n");
+				printf("sw $t0, %d($sp)\n", -(int) v.data.stack_pos);
+			}
 		}
 	}
 
@@ -599,19 +661,34 @@ value compile_list_index(char **c, value address, unsigned char dereference){
 		if(type_size(address_type) == 4){
 			printf("sll $s%d, $s%d, 2\n", index.data.reg, index.data.reg);
 		} else if(type_size(address_type) != 1){
-			fprintf(stderr, "Error: unrecognized type size: %d\n", type_size(address_type));
-			exit(1);
+			printf("li $t0, %d\n", (int) type_size(address_type));
+			printf("mult $s%d, $t0\n", index.data.reg);
+			printf("mflo $s%d\n", index.data.reg);
 		}
 		if(address.data.type == data_register){
 			printf("add $s%d, $s%d, $s%d\n", address.data.reg, address.data.reg, index.data.reg);
-			if(dereference){
-				printf("lw $s%d, 0($s%d)\n", address.data.reg, address.data.reg);
+			if(dereference && peek_type(address_type) != type_list){
+				if(type_size(address_type) == 4){
+					printf("lw $s%d, 0($s%d)\n", address.data.reg, address.data.reg);
+				} else if(type_size(address_type) == 1){
+					printf("lb $s%d, 0($s%d)\n", address.data.reg, address.data.reg);
+				} else {
+					fprintf(stderr, "Unusable type size\n");
+					exit(1);
+				}
 			}
 		} else if(address.data.type == data_stack){
 			printf("lw $t0, %d($sp)\n", -(int) address.data.stack_pos);
 			printf("add $t0, $t0, $s%d\n", index.data.reg);
-			if(dereference){
-				printf("lw $t0, 0($t0)\n");
+			if(dereference && peek_type(address_type) != type_list){
+				if(type_size(address_type) == 4){
+					printf("lw $t0, 0($t0)\n");
+				} else if(type_size(address_type) == 1){
+					printf("lb $t0, 0($t0)\n");
+				} else {
+					fprintf(stderr, "Unusable type size\n");
+					exit(1);
+				}
 			}
 			printf("sw $t0, %d($sp)\n", -(int) address.data.stack_pos);
 		}
@@ -619,17 +696,29 @@ value compile_list_index(char **c, value address, unsigned char dereference){
 		printf("lw $t1, %d($sp)\n", -(int) index.data.stack_pos);
 		if(type_size(address_type) == 4){
 			printf("sll $t1, $t1, 2\n");
+		} else if(type_size(address_type) != 1){
+			printf("li $t0, %d\n", (int) type_size(address_type));
+			printf("mult $t1, $t0\n");
+			printf("mflo $t1\n");
 		}
 		if(address.data.type == data_register){
 			printf("add $s%d, $s%d, $t1\n", address.data.reg, address.data.reg);
-			if(dereference){
-				printf("lw $s%d, 0($s%d)\n", address.data.reg, address.data.reg);
+			if(dereference && peek_type(address_type) != type_list){
+				if(type_size(address_type) == 4){
+					printf("lw $s%d, 0($s%d)\n", address.data.reg, address.data.reg);
+				} else if(type_size(address_type) == 1){
+					printf("lb $s%d, 0($s%d)\n", address.data.reg, address.data.reg);
+				}
 			}
 		} else if(address.data.type == data_stack){
 			printf("lw $t0, %d($sp)\n", -(int) address.data.stack_pos);
 			printf("add $t0, $t0, $t1\n");
-			if(dereference){
-				printf("lw $t0, 0($t0)\n");
+			if(dereference && peek_type(address_type) != type_list){
+				if(type_size(address_type) == 4){
+					printf("lw $t0, 0($t0)\n");
+				} else if(type_size(address_type) == 1){
+					printf("lb $t0, 0($t0)\n");
+				}
 			}
 			printf("sw $t0, %d($sp)\n", -(int) address.data.stack_pos);
 		}
@@ -637,6 +726,11 @@ value compile_list_index(char **c, value address, unsigned char dereference){
 	deallocate(index.data);
 	if(dereference){
 		pop_type(&(address.data_type));
+		if(peek_type(address.data_type) == type_list){
+			pop_type(&(address.data_type));
+			address.data_type.current_index--;
+			add_type_entry(&(address.data_type), type_pointer);
+		}
 	}
 	return address;
 }

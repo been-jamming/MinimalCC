@@ -349,14 +349,3 @@ static void parse_type_recursive(type *t, char **c, char *identifier_name, char 
 	append_type(t, inner_type);
 }
 
-int main(int argc, char **argv){
-	type t;
-	char *type_string = "int (*(*(*test)(void))[5])[6][7]\n";
-	char identifier_name[16];
-	char argument_names[16*16];
-
-	t = EMPTY_TYPE;
-	parse_type(&t, &type_string, identifier_name, argument_names, 16, 16);
-	print_type(t);
-	return 0;
-}
