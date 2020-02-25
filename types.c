@@ -193,6 +193,7 @@ type get_argument_type(type *t){
 	unsigned int current_entry_index = 0;
 
 	output = EMPTY_TYPE;
+	output.current_index = MAX_LISTS - 1;//Have to put indicies in reverse order
 	while((next_type_entry = pop_type(t)) >= 4 || function_count){
 		poke_type_entry(&output, next_type_entry, current_entry_index);
 		current_entry_index++;
@@ -201,8 +202,15 @@ type get_argument_type(type *t){
 		} else if(function_count && next_type_entry == type_returns){
 			function_count--;
 		}
+		if(next_type_entry == type_list){
+			t->current_index--;
+			output.list_indicies[output.current_index] = t->list_indicies[t->current_index];
+			t->current_index--;
+			output.current_index--;
+		}
 	}
 	poke_type_entry(&output, next_type_entry, current_entry_index);
+	output.current_index = MAX_LISTS;
 
 	return output;
 }
@@ -278,6 +286,11 @@ void parse_type_arguments(type *t, char **c, char *argument_names, unsigned int 
 		exit(1);
 	}
 	parse_type(&temp_type, c, argument_names, NULL, identifier_length, 0);
+	if(peek_type(temp_type) == type_list){
+		pop_type(&temp_type);
+		temp_type.current_index--;
+		add_type_entry(&temp_type, type_pointer);
+	}
 	skip_whitespace(c);
 	if(**c == ','){
 		++*c;
