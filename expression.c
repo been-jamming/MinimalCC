@@ -147,7 +147,6 @@ type operation_assign_func(char *reg_a, char *reg_b, value value_a, value value_
 		exit(1);
 	}
 	pop_type(&(value_a.data_type));
-	cast(value_b, value_a.data_type, 1);
 	if(type_size(value_a.data_type) == 4){
 		printf("sw %s, 0(%s)\n", reg_b, reg_a);
 	} else if(type_size(value_a.data_type) == 1){
@@ -342,14 +341,6 @@ value compile_integer(char **c, unsigned char dereference, unsigned char force_s
 	output.data_type = INT_TYPE;
 
 	return output;
-}
-
-static unsigned int first_element_size(type t){
-	while(peek_type(t) == type_list){
-		pop_type(&t);
-	}
-
-	return type_size(t);
 }
 
 static value compile_local_variable(variable *var, unsigned char dereference, unsigned char force_stack){
@@ -1182,6 +1173,7 @@ static value compile_expression_recursive(value first_value, char **c, unsigned 
 	operation next_operation;
 	value next_value;
 	char *temp_c;
+	type cast_to;
 
 	skip_whitespace(c);
 	while(**c && **c != ';' && **c != ',' && **c != ')' && **c != ']'){
@@ -1199,6 +1191,11 @@ static value compile_expression_recursive(value first_value, char **c, unsigned 
 			next_value = compile_expression_recursive(next_value, c, 1);
 			skip_whitespace(c);
 			next_operation = peek_operation(*c);
+		}
+		if(current_operation == operation_assign){
+			cast_to = first_value.data_type;
+			pop_type(&cast_to);
+			next_value = cast(next_value, cast_to, 1);
 		}
 		first_value = compile_operation(first_value, next_value, current_operation, dereference);
 		skip_whitespace(c);
