@@ -183,7 +183,38 @@ int pop_type(type *t){
 }
 
 unsigned char types_equal(type t0, type t1){
-	return t0.d0 == t1.d0 && t0.d1 == t1.d1 && t0.d2 == t1.d2;
+	unsigned char i;
+
+	if(t0.d0 != t1.d0 || t0.d1 != t1.d1 || t0.d2 != t1.d2){
+		return 0;
+	}
+	if(t0.current_index == 0 && t1.current_index != 0 && t1.list_indicies[t1.current_index - 1] != 0){
+		return 0;
+	}
+	if(t1.current_index == 0 && t0.current_index != 0 && t0.list_indicies[t0.current_index - 1] != 0){
+		return 0;
+	}
+	if(!t0.current_index || !t1.current_index){
+		return 1;
+	}
+	for(i = 0; i < 8; i++){
+		t0.current_index--;
+		t1.current_index--;
+		if(t0.list_indicies[t0.current_index] != t1.list_indicies[t1.current_index]){
+			return 0;
+		}
+		if(t0.current_index == 0 && t1.current_index != 0 && t1.list_indicies[t1.current_index - 1] != 0){
+			return 0;
+		}
+		if(t1.current_index == 0 && t0.current_index != 0 && t0.list_indicies[t0.current_index - 1] != 0){
+			return 0;
+		}
+		if(!t0.current_index || !t1.current_index){
+			break;
+		}
+	}
+
+	return 1;
 }
 
 type get_argument_type(type *t){
