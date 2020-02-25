@@ -258,7 +258,7 @@ static void parse_type_recursive(type *t, char **c, char *identifier_name, char 
 void parse_type(type *t, char **c, char *identifier_name, char *argument_names, unsigned int identifier_length, unsigned int num_arguments){
 	skip_whitespace(c);
 	if(!parse_datatype(t, c)){
-		printf("Expected 'void', 'int', or 'char'\n");
+		fprintf(stderr, "Expected 'void', 'int', or 'char'\n");
 		exit(1);
 	}
 

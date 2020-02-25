@@ -310,10 +310,11 @@ void compile_variable_initializer(char **c){
 
 	var = malloc(sizeof(variable));
 	varname = malloc(sizeof(char)*32);
+	var->var_type = EMPTY_TYPE;
 	parse_type(&(var->var_type), c, varname, NULL, 32, 0);
 	var->varname = varname;
-	var->stack_pos = variables_size;
 	variables_size += align4(type_size(var->var_type));
+	var->stack_pos = variables_size - 4;
 	write_dictionary(&local_variables, var->varname, var, 0);
 	skip_whitespace(c);
 	if(**c != ';'){
@@ -363,9 +364,9 @@ static value compile_local_variable(variable *var, unsigned char dereference, un
 	if(dereference){
 		if(peek_type(var->var_type) == type_list){
 			if(data.type == data_register){
-				printf("addi $s%d, $sp, %d\n", data.reg, variables_size - var->stack_pos - type_size(var->var_type) + first_element_size(var->var_type));
+				printf("addi $s%d, $sp, %d\n", data.reg, variables_size - var->stack_pos);
 			} else if(data.type == data_stack){
-				printf("addi $t0, $sp, %d\n", variables_size - var->stack_pos - type_size(var->var_type) + first_element_size(var->var_type));
+				printf("addi $t0, $sp, %d\n", variables_size - var->stack_pos);
 				printf("sw $t0, %d($sp)\n", -(int) data.stack_pos);
 			}
 			pop_type(&(output.data_type));
@@ -398,9 +399,9 @@ static value compile_local_variable(variable *var, unsigned char dereference, un
 	} else {
 		if(peek_type(var->var_type) == type_list){
 			if(data.type == data_register){
-				printf("addi $s%d, $sp, %d\n", data.reg, variables_size - var->stack_pos - type_size(var->var_type) + first_element_size(var->var_type));
+				printf("addi $s%d, $sp, %d\n", data.reg, variables_size - var->stack_pos);
 			} else if(data.type == data_stack){
-				printf("addi $t0, $sp, %d\n", variables_size - var->stack_pos - type_size(var->var_type) + first_element_size(var->var_type));
+				printf("addi $t0, $sp, %d\n", variables_size - var->stack_pos);
 				printf("sw $t0, %d($sp)\n", -(int) data.stack_pos);
 			}
 		} else {
