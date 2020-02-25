@@ -236,7 +236,6 @@ type get_argument_type(type *t){
 		if(next_type_entry == type_list){
 			t->current_index--;
 			output.list_indicies[output.current_index] = t->list_indicies[t->current_index];
-			t->current_index--;
 			output.current_index--;
 		}
 	}
