@@ -93,10 +93,19 @@ void append_type(type *t, type d){
 }
 
 unsigned char parse_identifier(char **c, char *identifier_name, unsigned int identifier_length){
-	if(!alpha(**c) || !strncmp(*c, "void", 4) || !strncmp(*c, "int", 3) || !strncmp(*c, "char", 4)){
+	if(!alpha(**c)){
 		return 0;
 	}
-	
+	if(!strncmp(*c, "void", 4) && !alphanumeric((*c)[4])){
+		return 0;
+	}
+	if(!strncmp(*c, "int", 3) && !alphanumeric((*c)[3])){
+		return 0;
+	}
+	if(!strncmp(*c, "char", 4) && !alphanumeric((*c)[4])){
+		return 0;
+	}
+
 	if(identifier_length){
 		identifier_length--;
 	}
