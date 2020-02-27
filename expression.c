@@ -428,10 +428,13 @@ static value compile_global_variable(variable *var, unsigned char dereference, u
 			pop_type(&data_type);
 			data_type.current_index--;
 			add_type_entry(&data_type, type_pointer);
+			if(data.type == data_stack){
+				printf("sw $t0, %d($sp)\n", -(int) data.stack_pos);
+			}
 		} else {
 			if(data.type == data_register){
 				printf("lw $s%d, 0($s%d)\n", data.reg, data.reg);
-			} else {
+			} else if(data.type == data_stack){
 				printf("lw $t0, 0($t0)\n");
 				printf("sw $t0, %d($sp)\n", -(int) data.stack_pos);
 			}

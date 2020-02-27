@@ -59,6 +59,7 @@ void compile_function(char **c, char *identifier_name, char *arguments, unsigned
 		var->leave_as_address = 0;
 		strcpy(var->varname, identifier_name);
 		write_dictionary(&global_variables, var->varname, var, 0);
+		printf(".data\n%s:\n.space %d\n\n.text\n", identifier_name, align4(type_size(t)));
 	} else {
 		if(!*identifier_name){
 			fprintf(stderr, "Expected function name\n");
