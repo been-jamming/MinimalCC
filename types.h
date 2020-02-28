@@ -1,4 +1,5 @@
 #include <stdint.h>
+#define MAX_LISTS 8
 
 typedef enum {
 	type_none = 0,
@@ -7,12 +8,15 @@ typedef enum {
 	type_char = 3,
 	type_pointer = 4,
 	type_function = 5,
-	type_returns = 6} type_entry;
+	type_returns = 6,
+	type_list = 7} type_entry;
 
 typedef struct {
 	uint64_t d0;
 	uint64_t d1;
 	uint64_t d2;
+	unsigned int list_indicies[MAX_LISTS];
+	unsigned int current_index;
 } type;
 
 unsigned char alpha(char c);

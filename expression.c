@@ -3,6 +3,7 @@
 #include <string.h>
 #include "dictionary.h"
 #include "expression.h"
+#include "compile.h"
 
 dictionary local_variables;
 dictionary global_variables;
@@ -11,8 +12,8 @@ unsigned int current_string = 0;
 unsigned int order_of_operations[] = {0, 6, 6, 7, 7, 1, 5, 5, 4, 4, 3, 2, 7};
 
 type operation_none_func(char *reg_a, char *reg_b, value value_a, value value_b){
-	fprintf(stderr, "Unrecognized operation\n");
-	exit(1);
+	snprintf(error_message, sizeof(error_message), "Unrecognized operation");
+	do_error(1);
 
 	return value_a.data_type;
 }
@@ -23,21 +24,22 @@ type operation_add_func(char *reg_a, char *reg_b, value value_a, value value_b){
 	char *integer_reg;
 
 	if(peek_type(value_a.data_type) == type_function || peek_type(value_b.data_type) == type_function){
-		fprintf(stderr, "Error: Addition of function type is undefined\n");
-		exit(1);
+		snprintf(error_message, sizeof(error_message), "Addition of function type is undefined");
+		do_error(1);
 	}
 	if(peek_type(value_a.data_type) == type_pointer){
 		if(peek_type(value_b.data_type) == type_pointer){
-			fprintf(stderr, "Warning: adding two pointers together. Treating them as integers instead\n");
+			snprintf(warning_message, sizeof(warning_message), "Adding two pointers together. Treating them as integers instead");
+			do_warning();
 			printf("add %s, %s, %s\n", reg_a, reg_a, reg_b);
 			return value_a.data_type;
 		}
 		pointer_value = value_a;
-		integer_reg = reg_a;
+		integer_reg = reg_b;
 	} else {
 		if(peek_type(value_b.data_type) == type_pointer){
 			pointer_value = value_b;
-			integer_reg = reg_b;
+			integer_reg = reg_a;
 		} else {
 			printf("add %s, %s, %s\n", reg_a, reg_a, reg_b);
 			return INT_TYPE;
@@ -48,8 +50,9 @@ type operation_add_func(char *reg_a, char *reg_b, value value_a, value value_b){
 	if(type_size(pointer_type) == 4){
 		printf("sll %s, %s, 2\n", integer_reg, integer_reg);
 	} else if(type_size(pointer_type) != 1){
-		fprintf(stderr, "Unrecognized type size: %d\n", type_size(pointer_type));
-		exit(1);
+		printf("li $t2, %d\n", type_size(pointer_type));
+		printf("mult %s, $t2\n", integer_reg);
+		printf("mflo %s\n", integer_reg);
 	}
 	printf("add %s, %s, %s\n", reg_a, reg_a, reg_b);
 
@@ -63,8 +66,8 @@ type operation_subtract_func(char *reg_a, char *reg_b, value value_a, value valu
 	char *integer_reg;
 
 	if(peek_type(value_a.data_type) == type_function || peek_type(value_b.data_type) == type_function){
-		fprintf(stderr, "Error: Subtraction of function type is undefined\n");
-		exit(1);
+		snprintf(error_message, sizeof(error_message), "Subtraction of function type is undefined");
+		do_error(1);
 	}
 	if(peek_type(value_a.data_type) == type_pointer){
 		if(peek_type(value_b.data_type) == type_pointer){
@@ -73,24 +76,25 @@ type operation_subtract_func(char *reg_a, char *reg_b, value value_a, value valu
 			pop_type(&pointer_type);
 			pop_type(&pointer_type2);
 			if(!types_equal(pointer_type, pointer_type2)){
-				fprintf(stderr, "Error: cannot subtract pointers to different types\n");
-				exit(1);
+				snprintf(error_message, sizeof(error_message), "Cannot subtract pointers to different types");
+				do_error(1);
 			}
 			printf("sub %s, %s, %s\n", reg_a, reg_a, reg_b);
 			if(type_size(pointer_type) == 4){
 				printf("sra %s, %s, 2\n", reg_a, reg_a);
 			} else if(type_size(pointer_type) != 1){
-				fprintf(stderr, "Unrecognized type size: %d\n", type_size(pointer_type));
-				exit(1);
+				printf("li $t2, %d\n", type_size(pointer_type));
+				printf("div %s, $t2\n", reg_a);
+				printf("mflo %s\n", reg_a);
 			}
-			return value_a.data_type;
+			return INT_TYPE;
 		}
 		pointer_value = value_a;
-		integer_reg = reg_a;
+		integer_reg = reg_b;
 	} else {
 		if(peek_type(value_b.data_type) == type_pointer){
 			pointer_value = value_b;
-			integer_reg = reg_b;
+			integer_reg = reg_a;
 		} else {
 			printf("sub %s, %s, %s\n", reg_a, reg_a, reg_b);
 			return INT_TYPE;
@@ -101,8 +105,9 @@ type operation_subtract_func(char *reg_a, char *reg_b, value value_a, value valu
 	if(type_size(pointer_type) == 4){
 		printf("sll %s, %s, 2\n", integer_reg, integer_reg);
 	} else if(type_size(pointer_type) != 1){
-		fprintf(stderr, "Unrecognized type size: %d\n", type_size(pointer_type));
-		exit(1);
+		printf("li $t2, %d\n", type_size(pointer_type));
+		printf("mult %s, $t2\n", integer_reg);
+		printf("mflo %s\n", integer_reg);
 	}
 	printf("sub %s, %s, %s\n", reg_a, reg_a, reg_b);
 
@@ -111,8 +116,8 @@ type operation_subtract_func(char *reg_a, char *reg_b, value value_a, value valu
 
 type operation_multiply_func(char *reg_a, char *reg_b, value value_a, value value_b){
 	if((!types_equal(value_a.data_type, INT_TYPE) && !types_equal(value_a.data_type, CHAR_TYPE)) || (!types_equal(value_b.data_type, INT_TYPE) && !types_equal(value_b.data_type, CHAR_TYPE))){
-		fprintf(stderr, "Error: cannot multiply non-int types\n");
-		exit(1);
+		snprintf(error_message, sizeof(error_message), "Cannot multiply non-int types");
+		do_error(1);
 	}
 	printf("mult %s, %s\n", reg_a, reg_b);
 	printf("mflo %s\n", reg_a);
@@ -121,8 +126,8 @@ type operation_multiply_func(char *reg_a, char *reg_b, value value_a, value valu
 
 type operation_divide_func(char *reg_a, char *reg_b, value value_a, value value_b){
 	if((!types_equal(value_a.data_type, INT_TYPE) && !types_equal(value_a.data_type, CHAR_TYPE)) || (!types_equal(value_b.data_type, INT_TYPE) && !types_equal(value_b.data_type, CHAR_TYPE))){
-		fprintf(stderr, "Error: cannot divide non-int types\n");
-		exit(1);
+		snprintf(error_message, sizeof(error_message), "Cannot divide non-int types");
+		do_error(1);
 	}
 	printf("div %s, %s\n", reg_a, reg_b);
 	printf("mflo %s\n", reg_a);
@@ -131,8 +136,8 @@ type operation_divide_func(char *reg_a, char *reg_b, value value_a, value value_
 
 type operation_modulo_func(char *reg_a, char *reg_b, value value_a, value value_b){
 	if((!types_equal(value_a.data_type, INT_TYPE) && !types_equal(value_a.data_type, CHAR_TYPE)) || (!types_equal(value_b.data_type, INT_TYPE) && !types_equal(value_b.data_type, CHAR_TYPE))){
-		fprintf(stderr, "Error: cannot divide non-int types\n");
-		exit(1);
+		snprintf(error_message, sizeof(error_message), "Cannot modulo non-int types");
+		do_error(1);
 	}
 	printf("div %s, %s\n", reg_a, reg_b);
 	printf("mfhi %s\n", reg_a);
@@ -141,11 +146,14 @@ type operation_modulo_func(char *reg_a, char *reg_b, value value_a, value value_
 
 type operation_assign_func(char *reg_a, char *reg_b, value value_a, value value_b){
 	if(!value_a.is_reference){
-		fprintf(stderr, "Cannot assign to r-value\n");
-		exit(1);
+		snprintf(error_message, sizeof(error_message), "Cannot assign to r-value");
+		do_error(1);
 	}
 	pop_type(&(value_a.data_type));
-	cast(value_b, value_a.data_type, 1);
+	if(peek_type(value_a.data_type) == type_function){
+		snprintf(error_message, sizeof(error_message), "Cannot assign to function");
+		do_error(1);
+	}
 	if(type_size(value_a.data_type) == 4){
 		printf("sw %s, 0(%s)\n", reg_b, reg_a);
 	} else if(type_size(value_a.data_type) == 1){
@@ -157,8 +165,8 @@ type operation_assign_func(char *reg_a, char *reg_b, value value_a, value value_
 
 type operation_less_than_func(char *reg_a, char *reg_b, value value_a, value value_b){
 	if((!types_equal(value_a.data_type, INT_TYPE) && !types_equal(value_a.data_type, CHAR_TYPE)) || (!types_equal(value_b.data_type, INT_TYPE) && !types_equal(value_b.data_type, CHAR_TYPE))){
-		fprintf(stderr, "Error: cannot compare non-int types with '<'\n");
-		exit(1);
+		snprintf(error_message, sizeof(error_message), "Cannot compare non-int types with '<'");
+		do_error(1);
 	}
 	printf("slt %s, %s, %s\n", reg_a, reg_a, reg_b);
 	return INT_TYPE;
@@ -166,8 +174,8 @@ type operation_less_than_func(char *reg_a, char *reg_b, value value_a, value val
 
 type operation_greater_than_func(char *reg_a, char *reg_b, value value_a, value value_b){
 	if((!types_equal(value_a.data_type, INT_TYPE) && !types_equal(value_a.data_type, CHAR_TYPE)) || (!types_equal(value_b.data_type, INT_TYPE) && !types_equal(value_b.data_type, CHAR_TYPE))){
-		fprintf(stderr, "Error: cannot compare non-int types with '>'\n");
-		exit(1);
+		snprintf(error_message, sizeof(error_message), "Cannot compare non-int types with '>'");
+		do_error(1);
 	}
 	printf("sgt %s, %s, %s\n", reg_a, reg_a, reg_b);
 	return INT_TYPE;
@@ -175,26 +183,29 @@ type operation_greater_than_func(char *reg_a, char *reg_b, value value_a, value 
 
 type operation_equals_func(char *reg_a, char *reg_b, value value_a, value value_b){
 	if(peek_type(value_a.data_type) == type_function || peek_type(value_b.data_type) == type_function){
-		fprintf(stderr, "Error: cannot compare function types\n");
-		exit(1);
+		snprintf(error_message, sizeof(error_message), "Cannot compare function types");
+		do_error(1);
 	}
 	if(peek_type(value_a.data_type) == type_pointer){
 		if(peek_type(value_b.data_type) == type_pointer){
 			pop_type(&(value_a.data_type));
 			pop_type(&(value_b.data_type));
 			if(!types_equal(value_a.data_type, value_b.data_type)){
-				fprintf(stderr, "Warning: comparing incompatible data types\n");
+				snprintf(warning_message, sizeof(warning_message), "Comparing incompatible data types");
+				do_warning();
 			}
 			printf("seq %s, %s, %s\n", reg_a, reg_a, reg_b);
 			return INT_TYPE;
 		} else {
-			fprintf(stderr, "Warning: comparing pointer and non-pointer types\n");
+			snprintf(warning_message, sizeof(warning_message), "Comparing pointer and non-pointer types");
+			do_warning();
 			printf("seq %s, %s, %s\n", reg_a, reg_a, reg_b);
 			return INT_TYPE;
 		}
 	} else {
 		if(peek_type(value_b.data_type) == type_pointer){
-			fprintf(stderr, "Warning: comparing pointer and non-pointer types\n");
+			snprintf(warning_message, sizeof(warning_message), "Comparing pointer and non-pointer types");
+			do_warning();
 		}
 		printf("seq %s, %s, %s\n", reg_a, reg_a, reg_b);
 		return INT_TYPE;
@@ -203,26 +214,29 @@ type operation_equals_func(char *reg_a, char *reg_b, value value_a, value value_
 
 type operation_not_equals_func(char *reg_a, char *reg_b, value value_a, value value_b){
 	if(peek_type(value_a.data_type) == type_function || peek_type(value_b.data_type) == type_function){
-		fprintf(stderr, "Error: cannot compare function types\n");
-		exit(1);
+		snprintf(error_message, sizeof(error_message), "Cannot compare function types");
+		do_error(1);
 	}
 	if(peek_type(value_a.data_type) == type_pointer){
 		if(peek_type(value_b.data_type) == type_pointer){
 			pop_type(&(value_a.data_type));
 			pop_type(&(value_b.data_type));
 			if(!types_equal(value_a.data_type, value_b.data_type)){
-				fprintf(stderr, "Warning: comparing incompatible data types\n");
+				snprintf(warning_message, sizeof(warning_message), "Comparing incompatible data types");
+				do_warning();
 			}
 			printf("sne %s, %s, %s\n", reg_a, reg_a, reg_b);
 			return INT_TYPE;
 		} else {
-			fprintf(stderr, "Warning: comparing pointer and non-pointer types\n");
+			snprintf(warning_message, sizeof(warning_message), "Comparing pointer and non-pointer types");
+			do_warning();
 			printf("sne %s, %s, %s\n", reg_a, reg_a, reg_b);
 			return INT_TYPE;
 		}
 	} else {
 		if(peek_type(value_b.data_type) == type_pointer){
-			fprintf(stderr, "Warning: comparing pointer and non-pointer types\n");
+			snprintf(warning_message, sizeof(warning_message), "Comparing pointer and non-pointer types");
+			do_warning();
 		}
 		printf("sne %s, %s, %s\n", reg_a, reg_a, reg_b);
 		return INT_TYPE;
@@ -231,8 +245,8 @@ type operation_not_equals_func(char *reg_a, char *reg_b, value value_a, value va
 
 type operation_and_func(char *reg_a, char *reg_b, value value_a, value value_b){
 	if((!types_equal(value_a.data_type, INT_TYPE) && !types_equal(value_a.data_type, CHAR_TYPE)) || (!types_equal(value_b.data_type, INT_TYPE) && !types_equal(value_b.data_type, CHAR_TYPE))){
-		fprintf(stderr, "Error: cannot '&' non-int types\n");
-		exit(1);
+		snprintf(error_message, sizeof(error_message), "Cannot '&' non-int types");
+		do_error(1);
 	}
 	printf("and %s, %s, %s\n", reg_a, reg_a, reg_b);
 	return INT_TYPE;
@@ -240,8 +254,8 @@ type operation_and_func(char *reg_a, char *reg_b, value value_a, value value_b){
 
 type operation_or_func(char *reg_a, char *reg_b, value value_a, value value_b){
 	if((!types_equal(value_a.data_type, INT_TYPE) && !types_equal(value_a.data_type, CHAR_TYPE)) || (!types_equal(value_b.data_type, INT_TYPE) && !types_equal(value_b.data_type, CHAR_TYPE))){
-		fprintf(stderr, "Error: cannot '&' non-int types\n");
-		exit(1);
+		snprintf(error_message, sizeof(error_message), "Cannot '|' non-int types");
+		do_error(1);
 	}
 	printf("or %s, %s, %s\n", reg_a, reg_a, reg_b);
 	return INT_TYPE;
@@ -261,6 +275,9 @@ int type_size(type t){
 			return POINTER_SIZE;
 		case type_function:
 			return POINTER_SIZE;
+		case type_list:
+			t.current_index--;
+			return t.list_indicies[t.current_index]*type_size(t);
 	}
 
 	return 0;
@@ -288,21 +305,33 @@ void free_global_variables(){
 	free_dictionary(global_variables, free_var);
 }
 
+unsigned int align4(unsigned int size){
+	unsigned int remainder;
+
+	remainder = size%4;
+	if(remainder){
+		size += 4 - remainder;
+	}
+
+	return size;
+}
+
 void compile_variable_initializer(char **c){
 	variable *var;
 	char *varname;
 
 	var = malloc(sizeof(variable));
 	varname = malloc(sizeof(char)*32);
+	var->var_type = EMPTY_TYPE;
 	parse_type(&(var->var_type), c, varname, NULL, 32, 0);
 	var->varname = varname;
-	var->stack_pos = variables_size;
-	variables_size += type_size(var->var_type);
+	variables_size += align4(type_size(var->var_type));
+	var->stack_pos = variables_size - 4;
 	write_dictionary(&local_variables, var->varname, var, 0);
 	skip_whitespace(c);
 	if(**c != ';'){
-		fprintf(stderr, "Expected ';'");
-		exit(1);
+		snprintf(error_message, sizeof(error_message), "Expected ';'");
+		do_error(1);
 	}
 	++*c;
 }
@@ -312,8 +341,8 @@ value compile_integer(char **c, unsigned char dereference, unsigned char force_s
 	int int_value;
 
 	if(!dereference){
-		fprintf(stderr, "Cannot take address of r-value\n");
-		exit(1);
+		snprintf(error_message, sizeof(error_message), "Cannot take address of r-value");
+		do_error(1);
 	}
 	output.data = allocate(force_stack);
 	int_value = strtol(*c, c, 10);
@@ -337,34 +366,55 @@ static value compile_local_variable(variable *var, unsigned char dereference, un
 	output.data_type = data_type;
 	output.data = data;
 	if(dereference){
-		if(data.type == data_register){
-			switch(type_size(data_type)){
-				case 1:
-					printf("lb $s%d, %d($sp)\n", data.reg, variables_size - var->stack_pos);
-					break;
-				case 4:
-					printf("lw $s%d, %d($sp)\n", data.reg, variables_size - var->stack_pos);
-					break;
-
+		if(peek_type(var->var_type) == type_list){
+			if(data.type == data_register){
+				printf("addi $s%d, $sp, %d\n", data.reg, variables_size - var->stack_pos);
+			} else if(data.type == data_stack){
+				printf("addi $t0, $sp, %d\n", variables_size - var->stack_pos);
+				printf("sw $t0, %d($sp)\n", -(int) data.stack_pos);
 			}
-		} else if(data.type == data_stack){
-			switch(type_size(data_type)){
-				case 1:
-					printf("lb $t0, %d($sp)\n", variables_size - var->stack_pos);
-					printf("sb $t0, %d($sp)\n", -(int) data.stack_pos);
-					break;
-				case 4:
-					printf("lw $t0, %d($sp)\n", variables_size - var->stack_pos);
-					printf("sw $t0, %d($sp)\n", -(int) data.stack_pos);
-					break;
+			pop_type(&(output.data_type));
+			output.data_type.current_index--;
+			add_type_entry(&(output.data_type), type_pointer);
+		} else {
+			if(data.type == data_register){
+				switch(type_size(data_type)){
+					case 1:
+						printf("lb $s%d, %d($sp)\n", data.reg, variables_size - var->stack_pos);
+						break;
+					case 4:
+						printf("lw $s%d, %d($sp)\n", data.reg, variables_size - var->stack_pos);
+						break;
+
+				}
+			} else if(data.type == data_stack){
+				switch(type_size(data_type)){
+					case 1:
+						printf("lb $t0, %d($sp)\n", variables_size - var->stack_pos);
+						printf("sb $t0, %d($sp)\n", -(int) data.stack_pos);
+						break;
+					case 4:
+						printf("lw $t0, %d($sp)\n", variables_size - var->stack_pos);
+						printf("sw $t0, %d($sp)\n", -(int) data.stack_pos);
+						break;
+				}
 			}
 		}
 	} else {
-		if(data.type == data_register){
-			printf("addi $s%d, $sp, %d\n", data.reg, variables_size - var->stack_pos);
-		} else if(data.type == data_stack){
-			printf("addi $t0, $sp, %d\n", variables_size - var->stack_pos);
-			printf("sw $t0, %d($sp)\n", -(int) data.stack_pos);
+		if(peek_type(var->var_type) == type_list){
+			if(data.type == data_register){
+				printf("addi $s%d, $sp, %d\n", data.reg, variables_size - var->stack_pos);
+			} else if(data.type == data_stack){
+				printf("addi $t0, $sp, %d\n", variables_size - var->stack_pos);
+				printf("sw $t0, %d($sp)\n", -(int) data.stack_pos);
+			}
+		} else {
+			if(data.type == data_register){
+				printf("addi $s%d, $sp, %d\n", data.reg, variables_size - var->stack_pos);
+			} else if(data.type == data_stack){
+				printf("addi $t0, $sp, %d\n", variables_size - var->stack_pos);
+				printf("sw $t0, %d($sp)\n", -(int) data.stack_pos);
+			}
 		}
 		add_type_entry(&(output.data_type), type_pointer);
 	}
@@ -387,11 +437,20 @@ static value compile_global_variable(variable *var, unsigned char dereference, u
 	output.data = data;
 	output.is_reference = !dereference;
 	if(dereference && !var->leave_as_address){
-		if(data.type == data_register){
-			printf("lw $s%d, 0($s%d)\n", data.reg, data.reg);
+		if(peek_type(data_type) == type_list){
+			pop_type(&data_type);
+			data_type.current_index--;
+			add_type_entry(&data_type, type_pointer);
+			if(data.type == data_stack){
+				printf("sw $t0, %d($sp)\n", -(int) data.stack_pos);
+			}
 		} else {
-			printf("lw $t0, 0($t0)\n");
-			printf("sw $t0, %d($sp)\n", -(int) data.stack_pos);
+			if(data.type == data_register){
+				printf("lw $s%d, 0($s%d)\n", data.reg, data.reg);
+			} else if(data.type == data_stack){
+				printf("lw $t0, 0($t0)\n");
+				printf("sw $t0, %d($sp)\n", -(int) data.stack_pos);
+			}
 		}
 	} else {
 		add_type_entry(&data_type, type_pointer);
@@ -423,8 +482,8 @@ value compile_variable(char **c, unsigned char dereference, unsigned char force_
 	if(!var){
 		var = read_dictionary(global_variables, varname, 0);
 		if(!var){
-			fprintf(stderr, "Unrecognized variable '%s'\n", varname);
-			exit(1);
+			snprintf(error_message, sizeof(error_message), "Unrecognized variable '%s'", varname);
+			do_error(1);
 		}
 		return compile_global_variable(var, dereference, force_stack);
 	} else {
@@ -438,8 +497,13 @@ value cast(value v, type t, unsigned char do_warn){
 	type t_copy;
 
 	if(types_equal(v.data_type, VOID_TYPE) && !types_equal(t, VOID_TYPE)){
-		fprintf(stderr, "Can't cast void type to non-void type\n");
-		exit(1);
+		snprintf(error_message, sizeof(error_message), "Can't cast void type to non-void type");
+		do_error(1);
+	}
+
+	if(peek_type(t) == type_list){
+		snprintf(error_message, sizeof(error_message), "Can't cast to an array");
+		do_error(1);
 	}
 
 	if(type_size(v.data_type) == 4 && type_size(t) == 1){
@@ -461,7 +525,8 @@ value cast(value v, type t, unsigned char do_warn){
 
 	t_copy = t;
 	if((pop_type(&t_copy) == type_pointer) != (pop_type(&(v.data_type)) == type_pointer) && do_warn){
-		fprintf(stderr, "Warning: casting between pointer and non-pointer types\n");
+		snprintf(warning_message, sizeof(warning_message), "Casting between pointer and non-pointer types");
+		do_warning();
 	}
 
 	v.data_type = t;
@@ -473,27 +538,33 @@ value compile_dereference(value v){
 
 	data_type = v.data_type;
 	if(pop_type(&data_type) != type_pointer){
-		fprintf(stderr, "Cannot dereference non-pointer type\n");
-		exit(1);
+		snprintf(error_message, sizeof(error_message), "Cannot dereference non-pointer type");
+		do_error(1);
 	}
 	if(peek_type(data_type) == type_void){
-		fprintf(stderr, "Cannot dereference void pointer\n");
-		exit(1);
+		snprintf(error_message, sizeof(error_message), "Cannot dereference void pointer");
+		do_error(1);
 	}
-	if(v.data.type == data_register){
-		if(type_size(data_type) == 1){
-			printf("lb $s%d, 0($s%d)\n", v.data.reg, v.data.reg);
-		} else if(type_size(data_type) == 4){
-			printf("lw $s%d, 0($s%d)\n", v.data.reg, v.data.reg);
-		}
-	} else if(v.data.type == data_stack){
-		printf("lw $t0, %d($sp)\n", -(int) v.data.stack_pos);
-		if(type_size(data_type) == 1){
-			printf("lb $t0, 0($t0)\n");
-			printf("sb $t0, %d($sp)\n", -(int) v.data.stack_pos);
-		} else if(type_size(data_type) == 4){
-			printf("lw $t0, 0($t0)\n");
-			printf("sw $t0, %d($sp)\n", -(int) v.data.stack_pos);
+	if(peek_type(data_type) == type_list){
+		pop_type(&data_type);
+		data_type.current_index--;
+		add_type_entry(&data_type, type_pointer);
+	} else if(peek_type(data_type) != type_function){
+		if(v.data.type == data_register){
+			if(type_size(data_type) == 1){
+				printf("lb $s%d, 0($s%d)\n", v.data.reg, v.data.reg);
+			} else if(type_size(data_type) == 4){
+				printf("lw $s%d, 0($s%d)\n", v.data.reg, v.data.reg);
+			}
+		} else if(v.data.type == data_stack){
+			printf("lw $t0, %d($sp)\n", -(int) v.data.stack_pos);
+			if(type_size(data_type) == 1){
+				printf("lb $t0, 0($t0)\n");
+				printf("sb $t0, %d($sp)\n", -(int) v.data.stack_pos);
+			} else if(type_size(data_type) == 4){
+				printf("lw $t0, 0($t0)\n");
+				printf("sw $t0, %d($sp)\n", -(int) v.data.stack_pos);
+			}
 		}
 	}
 
@@ -515,8 +586,8 @@ value compile_function_call(char **c, value func){
 		pop_type(&(func.data_type));
 	}
 	if(pop_type(&(func.data_type)) != type_function){
-		fprintf(stderr, "Can't call non-function type\n");
-		exit(1);
+		snprintf(error_message, sizeof(error_message), "Can't call non-function type");
+		do_error(1);
 	}
 
 	label_num = num_labels;
@@ -534,8 +605,8 @@ value compile_function_call(char **c, value func){
 	if(peek_type(func.data_type) == type_returns){
 		skip_whitespace(c);
 		if(**c != ')'){
-			fprintf(stderr, "Expected ')'\n");
-			exit(1);
+			snprintf(error_message, sizeof(error_message), "Expected ')'");
+			do_error(1);
 		}
 		++*c;
 	}
@@ -543,11 +614,11 @@ value compile_function_call(char **c, value func){
 		current_argument_type = get_argument_type(&(func.data_type));
 		current_argument_value = compile_expression(c, 1, 1);
 		if(**c != ',' && peek_type(func.data_type) != type_returns){
-			fprintf(stderr, "Expected ','\n");
-			exit(1);
+			snprintf(error_message, sizeof(error_message), "Expected ','");
+			do_error(1);
 		} else if(**c != ')' && peek_type(func.data_type) == type_returns){
-			fprintf(stderr, "Expected ')'\n");
-			exit(1);
+			snprintf(error_message, sizeof(error_message), "Expected ')'");
+			do_error(1);
 		}
 		++*c;
 		current_argument_value = cast(current_argument_value, current_argument_type, 1);
@@ -584,14 +655,14 @@ value compile_list_index(char **c, value address, unsigned char dereference){
 
 	address_type = address.data_type;
 	if(pop_type(&address_type) != type_pointer){
-		fprintf(stderr, "Cannot address non-pointer type\n");
-		exit(1);
+		snprintf(error_message, sizeof(error_message), "Cannot address non-pointer type");
+		do_error(1);
 	}
 	++*c;
 	index = compile_expression(c, 1, 0);
 	if(**c != ']'){
-		fprintf(stderr, "Expected closing ']'\n");
-		exit(1);
+		snprintf(error_message, sizeof(error_message), "Expected closing ']'");
+		do_error(1);
 	}
 	++*c;
 	index = cast(index, INT_TYPE, 1);
@@ -599,19 +670,34 @@ value compile_list_index(char **c, value address, unsigned char dereference){
 		if(type_size(address_type) == 4){
 			printf("sll $s%d, $s%d, 2\n", index.data.reg, index.data.reg);
 		} else if(type_size(address_type) != 1){
-			fprintf(stderr, "Error: unrecognized type size: %d\n", type_size(address_type));
-			exit(1);
+			printf("li $t0, %d\n", (int) type_size(address_type));
+			printf("mult $s%d, $t0\n", index.data.reg);
+			printf("mflo $s%d\n", index.data.reg);
 		}
 		if(address.data.type == data_register){
 			printf("add $s%d, $s%d, $s%d\n", address.data.reg, address.data.reg, index.data.reg);
-			if(dereference){
-				printf("lw $s%d, 0($s%d)\n", address.data.reg, address.data.reg);
+			if(dereference && peek_type(address_type) != type_list){
+				if(type_size(address_type) == 4){
+					printf("lw $s%d, 0($s%d)\n", address.data.reg, address.data.reg);
+				} else if(type_size(address_type) == 1){
+					printf("lb $s%d, 0($s%d)\n", address.data.reg, address.data.reg);
+				} else {
+					snprintf(error_message, sizeof(error_message), "[INTERNAL] Unusable type size");
+					do_error(1);
+				}
 			}
 		} else if(address.data.type == data_stack){
 			printf("lw $t0, %d($sp)\n", -(int) address.data.stack_pos);
 			printf("add $t0, $t0, $s%d\n", index.data.reg);
-			if(dereference){
-				printf("lw $t0, 0($t0)\n");
+			if(dereference && peek_type(address_type) != type_list){
+				if(type_size(address_type) == 4){
+					printf("lw $t0, 0($t0)\n");
+				} else if(type_size(address_type) == 1){
+					printf("lb $t0, 0($t0)\n");
+				} else {
+					snprintf(error_message, sizeof(error_message), "[INTERNAL] Unusable type size");
+					do_error(1);
+				}
 			}
 			printf("sw $t0, %d($sp)\n", -(int) address.data.stack_pos);
 		}
@@ -619,17 +705,29 @@ value compile_list_index(char **c, value address, unsigned char dereference){
 		printf("lw $t1, %d($sp)\n", -(int) index.data.stack_pos);
 		if(type_size(address_type) == 4){
 			printf("sll $t1, $t1, 2\n");
+		} else if(type_size(address_type) != 1){
+			printf("li $t0, %d\n", (int) type_size(address_type));
+			printf("mult $t1, $t0\n");
+			printf("mflo $t1\n");
 		}
 		if(address.data.type == data_register){
 			printf("add $s%d, $s%d, $t1\n", address.data.reg, address.data.reg);
-			if(dereference){
-				printf("lw $s%d, 0($s%d)\n", address.data.reg, address.data.reg);
+			if(dereference && peek_type(address_type) != type_list){
+				if(type_size(address_type) == 4){
+					printf("lw $s%d, 0($s%d)\n", address.data.reg, address.data.reg);
+				} else if(type_size(address_type) == 1){
+					printf("lb $s%d, 0($s%d)\n", address.data.reg, address.data.reg);
+				}
 			}
 		} else if(address.data.type == data_stack){
 			printf("lw $t0, %d($sp)\n", -(int) address.data.stack_pos);
 			printf("add $t0, $t0, $t1\n");
-			if(dereference){
-				printf("lw $t0, 0($t0)\n");
+			if(dereference && peek_type(address_type) != type_list){
+				if(type_size(address_type) == 4){
+					printf("lw $t0, 0($t0)\n");
+				} else if(type_size(address_type) == 1){
+					printf("lb $t0, 0($t0)\n");
+				}
 			}
 			printf("sw $t0, %d($sp)\n", -(int) address.data.stack_pos);
 		}
@@ -637,6 +735,11 @@ value compile_list_index(char **c, value address, unsigned char dereference){
 	deallocate(index.data);
 	if(dereference){
 		pop_type(&(address.data_type));
+		if(peek_type(address.data_type) == type_list){
+			pop_type(&(address.data_type));
+			address.data_type.current_index--;
+			add_type_entry(&(address.data_type), type_pointer);
+		}
 	}
 	return address;
 }
@@ -656,8 +759,8 @@ void match_parentheses(char **c){
 		}
 	}
 	if(!**c || **c == ']'){
-		fprintf(stderr, "Expected ')'\n");
-		exit(1);
+		snprintf(error_message, sizeof(error_message), "Expected ')'");
+		do_error(1);
 	}
 	++*c;
 }
@@ -675,8 +778,8 @@ void match_brackets(char **c){
 		}
 	}
 	if(!**c || **c == ')'){
-		fprintf(stderr, "Expected ']'\n");
-		exit(1);
+		snprintf(error_message, sizeof(error_message), "Expected ']'");
+		do_error(1);
 	}
 	++*c;
 }
@@ -734,8 +837,8 @@ value compile_string(char **c, unsigned char dereference, unsigned char force_st
 	value output;
 
 	if(!dereference){
-		fprintf(stderr, "Error: can't get address of r-value\n");
-		exit(1);
+		snprintf(error_message, sizeof(error_message), "Can't get address of r-value");
+		do_error(1);
 	}
 	++*c;
 	skip_string(c);
@@ -770,8 +873,8 @@ value compile_logical_not(value v){
 
 value compile_not(value v){
 	if(!types_equal(v.data_type, INT_TYPE) && !types_equal(v.data_type, CHAR_TYPE)){
-		fprintf(stderr, "Error: Can't perform bitwise not of non-numerical type\n");
-		exit(1);
+		snprintf(error_message, sizeof(error_message), "Can't perform bitwise not of non-numerical type");
+		do_error(1);
 	}
 	if(v.data.type == data_register){
 		printf("seq $s%d, $s%d, $s%d\n", v.data.reg, v.data.reg, v.data.reg);
@@ -787,8 +890,8 @@ value compile_not(value v){
 
 value compile_negate(value v){
 	if(!types_equal(v.data_type, INT_TYPE) && !types_equal(v.data_type, CHAR_TYPE)){
-		fprintf(stderr, "Error: Can't negate non-numerical type\n");
-		exit(1);
+		snprintf(error_message, sizeof(error_message), "Can't negate non-numerical type");
+		do_error(1);
 	}
 	if(v.data.type == data_register){
 		printf("sub $s%d, $zero, $s%d\n", v.data.reg, v.data.reg);
@@ -826,8 +929,8 @@ value compile_value(char **c, unsigned char dereference, unsigned char force_sta
 		if(dereference){
 			output = compile_value(c, 0, force_stack);
 		} else {
-			fprintf(stderr, "Can't get address of r-value\n");
-			exit(1);
+			snprintf(error_message, sizeof(error_message), "Can't get address of r-value");
+			do_error(1);
 		}
 		output.is_reference = 0;
 		return output;
@@ -836,8 +939,8 @@ value compile_value(char **c, unsigned char dereference, unsigned char force_sta
 		if(dereference){
 			output = compile_logical_not(compile_value(c, 1, force_stack));
 		} else {
-			fprintf(stderr, "Can't get address of r-value\n");
-			exit(1);
+			snprintf(error_message, sizeof(error_message), "Can't get address of r-value");
+			do_error(1);
 		}
 		output.is_reference = 0;
 		return output;
@@ -846,8 +949,8 @@ value compile_value(char **c, unsigned char dereference, unsigned char force_sta
 		if(dereference){
 			output = compile_not(compile_value(c, 1, force_stack));
 		} else {
-			fprintf(stderr, "Can't get address of r-value\n");
-			exit(1);
+			snprintf(error_message, sizeof(error_message), "Can't get address of r-value");
+			do_error(1);
 		}
 		output.is_reference = 0;
 		return output;
@@ -856,8 +959,8 @@ value compile_value(char **c, unsigned char dereference, unsigned char force_sta
 		if(dereference){
 			output = compile_negate(compile_value(c, 1, force_stack));
 		} else {
-			fprintf(stderr, "Can't get address of r-value\n");
-			exit(1);
+			snprintf(error_message, sizeof(error_message), "Can't get address of r-value");
+			do_error(1);
 		}
 		output.is_reference = 0;
 		return output;
@@ -872,14 +975,14 @@ value compile_value(char **c, unsigned char dereference, unsigned char force_sta
 		//Type casting
 		if(parse_datatype(NULL, &temp_c)){
 			if(!dereference){
-				fprintf(stderr, "Can't get address of r-value\n");
-				exit(1);
+				snprintf(error_message, sizeof(error_message), "Can't get address of r-value");
+				do_error(1);
 			}
 			cast_type = EMPTY_TYPE;
 			parse_type(&cast_type, c, NULL, NULL, 0, 0);
 			if(**c != ')'){
-				fprintf(stderr, "Error: Expected ')'\n");
-				exit(1);
+				snprintf(error_message, sizeof(error_message), "Expected ')'");
+				do_error(1);
 			}
 			++*c;
 			return cast(compile_value(c, 1, force_stack), cast_type, 0);
@@ -889,7 +992,8 @@ value compile_value(char **c, unsigned char dereference, unsigned char force_sta
 			if(**c == ')'){
 				++*c;
 			} else {
-				fprintf(stderr, "Expected closing ')'\n");
+				snprintf(error_message, sizeof(error_message), "Expected closing ')'");
+				do_error(1);
 			}
 		}
 	} else if(**c == '-' || digit(**c)){
@@ -897,8 +1001,8 @@ value compile_value(char **c, unsigned char dereference, unsigned char force_sta
 	} else if(alpha(**c)){
 		output = compile_variable(c, dereference, force_stack);
 	} else {
-		fprintf(stderr, "unrecognized expression value %s\n", *c);
-		exit(1);
+		snprintf(error_message, sizeof(error_message), "Unrecognized expression value");
+		do_error(1);
 	}
 
 	skip_whitespace(c);
@@ -911,8 +1015,8 @@ value compile_value(char **c, unsigned char dereference, unsigned char force_sta
 		} else if(**c == '('){
 			++*c;
 			if(!dereference){
-				fprintf(stderr, "Cannot get address of return value of function\n");
-				exit(1);
+				snprintf(error_message, sizeof(error_message), "Cannot get address of return value of function");
+				do_error(1);
 			}
 			output = compile_function_call(c, output);
 		}
@@ -1025,13 +1129,13 @@ value compile_operation(value first_value, value next_value, operation op, unsig
 	type output_type;
 
 	if(!dereference){
-		fprintf(stderr, "Can't get address of r-value expression\n");
-		exit(1);
+		snprintf(error_message, sizeof(error_message), "Can't get address of r-value expression");
+		do_error(1);
 	}
 
 	if(types_equal(first_value.data_type, VOID_TYPE) || types_equal(next_value.data_type, VOID_TYPE)){
-		fprintf(stderr, "Can't operate on void value\n");
-		exit(1);
+		snprintf(error_message, sizeof(error_message), "Can't operate on void value");
+		do_error(1);
 	}
 
 	if(first_value.data.type == data_register){
@@ -1044,8 +1148,8 @@ value compile_operation(value first_value, value next_value, operation op, unsig
 		} else if(type_size(first_value.data_type) == 1){
 			printf("lb $t0, %d($sp)\n", -(int) first_value.data.stack_pos);
 		} else {
-			fprintf(stderr, "Unusable type size %d\n", type_size(first_value.data_type));
-			exit(1);
+			snprintf(error_message, sizeof(error_message), "[INTERNAL] Unusable type size %d", type_size(first_value.data_type));
+			do_error(1);
 		}
 	}
 	if(next_value.data.type == data_register){
@@ -1058,8 +1162,8 @@ value compile_operation(value first_value, value next_value, operation op, unsig
 		} else if(type_size(next_value.data_type) == 1){
 			printf("lb $t1, %d($sp)\n", -(int) next_value.data.stack_pos);
 		} else {
-			fprintf(stderr, "Unusable type size %d\n", type_size(next_value.data_type));
-			exit(1);
+			snprintf(error_message, sizeof(error_message), "[INTERNAL] Unusable type size %d", type_size(next_value.data_type));
+			do_error(1);
 		}
 	}
 	output_type = operation_functions[op](reg0_str, reg1_str, first_value, next_value);
@@ -1070,8 +1174,8 @@ value compile_operation(value first_value, value next_value, operation op, unsig
 		} else if(type_size(output_type) == 1){
 			printf("sw $t0, %d($sp)\n", -(int) first_value.data.stack_pos);
 		} else {
-			fprintf(stderr, "Unusable type size %d\n", type_size(output_type));
-			exit(1);
+			snprintf(error_message, sizeof(error_message), "[INTERNAL] Unusable type size %d", type_size(output_type));
+			do_error(1);
 		}
 	}
 	first_value.data_type = output_type;
@@ -1087,12 +1191,20 @@ static value compile_expression_recursive(value first_value, char **c, unsigned 
 	operation next_operation;
 	value next_value;
 	char *temp_c;
+	type cast_to;
+	int current_line_temp;
 
 	skip_whitespace(c);
 	while(**c && **c != ';' && **c != ',' && **c != ')' && **c != ']'){
 		current_operation = get_operation(c);
+		if(current_operation == operation_none){
+			snprintf(error_message, sizeof(error_message), "Unrecognized operation");
+			do_error(1);
+		}
 		temp_c = *c;
+		current_line_temp = current_line;
 		skip_value(&temp_c);
+		current_line = current_line_temp;
 		next_operation = peek_operation(temp_c);
 		if(next_operation == operation_assign){
 			next_value = compile_value(c, 0, 0);
@@ -1105,6 +1217,11 @@ static value compile_expression_recursive(value first_value, char **c, unsigned 
 			skip_whitespace(c);
 			next_operation = peek_operation(*c);
 		}
+		if(current_operation == operation_assign){
+			cast_to = first_value.data_type;
+			pop_type(&cast_to);
+			next_value = cast(next_value, cast_to, 1);
+		}
 		first_value = compile_operation(first_value, next_value, current_operation, dereference);
 		skip_whitespace(c);
 	}
@@ -1115,10 +1232,12 @@ static value compile_expression_recursive(value first_value, char **c, unsigned 
 value compile_expression(char **c, unsigned char dereference, unsigned char force_stack){
 	value first_value;
 	char *temp_c;
+	int current_line_temp;
 
 	temp_c = *c;
+	current_line_temp = current_line;
 	skip_value(&temp_c);
-	skip_whitespace(&temp_c);
+	current_line = current_line_temp;
 
 	if(peek_operation(temp_c) == operation_assign){
 		first_value = compile_value(c, 0, force_stack);
