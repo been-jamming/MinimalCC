@@ -150,6 +150,10 @@ unsigned char parse_datatype(type *t, char **c){
 	}
 }
 
+unsigned char is_whitespace(char c){
+	return c == ' ' || c == '\t' || c == '\n';
+}
+
 void skip_whitespace(char **c){
 	while(**c == ' ' || **c == '\t' || **c == '\n'){
 		if(**c == '\n'){

@@ -802,14 +802,13 @@ void skip_value(char **c){
 		skip_string(c);
 		return;
 	}
-	while(**c == '*' || **c == '&'){
+	while(**c == '*' || **c == '&' || **c == '!' || **c == '~' || **c == '-' || is_whitespace(**c)){
 		++*c;
 	}
-	skip_whitespace(c);
 	if(**c == '('){
 		++*c;
 		match_parentheses(c);
-	} else if(**c == '-' || digit(**c)){
+	} else if(digit(**c)){
 		while(digit(**c)){
 			++*c;
 		}

@@ -23,6 +23,7 @@ unsigned char alpha(char c);
 unsigned char alphanumeric(char c);
 unsigned char digit(char c);
 void add_type_entry(type *t, type_entry entry);
+unsigned char is_whitespace(char c);
 void skip_whitespace(char **c);
 int peek_type(type t);
 int pop_type(type *t);
