@@ -3,6 +3,7 @@
 #include <stdint.h>
 #include <string.h>
 #include "types.h"
+#include "compile.h"
 
 const type INT_TYPE = (type) {.d0 = 0, .d1 = 1, .d2 = 0, .list_indicies = {0}, .current_index = 0};
 const type VOID_TYPE = (type) {.d0 = 1, .d1 = 0, .d2 = 0, .list_indicies = {0}, .current_index = 0};
@@ -151,6 +152,9 @@ unsigned char parse_datatype(type *t, char **c){
 
 void skip_whitespace(char **c){
 	while(**c == ' ' || **c == '\t' || **c == '\n'){
+		if(**c == '\n'){
+			current_line++;
+		}
 		++*c;
 	}
 }
@@ -305,8 +309,8 @@ static void parse_type_recursive(type *t, char **c, char *identifier_name, char 
 void parse_type(type *t, char **c, char *identifier_name, char *argument_names, unsigned int identifier_length, unsigned int num_arguments){
 	skip_whitespace(c);
 	if(!parse_datatype(t, c)){
-		fprintf(stderr, "Expected 'void', 'int', or 'char'\n");
-		exit(1);
+		snprintf(error_message, sizeof(error_message), "Expected 'void', 'int', or 'char'");
+		do_error(1);
 	}
 
 	skip_whitespace(c);
@@ -321,8 +325,8 @@ void parse_type_arguments(type *t, char **c, char *argument_names, unsigned int 
 		return;
 	}
 	if(argument_names && !num_arguments){
-		fprintf(stderr, "Too many arguments!\n");
-		exit(1);
+		snprintf(error_message, sizeof(error_message), "Too many arguments!");
+		do_error(1);;
 	}
 	parse_type(&temp_type, c, argument_names, NULL, identifier_length, 0);
 	if(peek_type(temp_type) == type_list){
@@ -362,8 +366,8 @@ static void parse_type_recursive(type *t, char **c, char *identifier_name, char 
 		skip_whitespace(c);
 		parse_type_recursive(&inner_type, c, identifier_name, argument_names, identifier_length, num_arguments);
 		if(**c != ')'){
-			printf("Expected ')'\n");
-			exit(1);
+			snprintf(error_message, sizeof(error_message), "Expected ')'");
+			do_error(1);
 		}
 		++*c;
 	}
@@ -378,8 +382,8 @@ static void parse_type_recursive(type *t, char **c, char *identifier_name, char 
 		++*c;
 		add_type_entry(t, type_function);
 		if(**c == '(' || **c == '['){
-			fprintf(stderr, "Invalid type\n");
-			exit(1);
+			snprintf(error_message, sizeof(error_message), "Invalid type");
+			do_error(1);
 		}
 	} else if(**c == '['){
 		while(**c == '['){
@@ -389,8 +393,8 @@ static void parse_type_recursive(type *t, char **c, char *identifier_name, char 
 			list_type.current_index++;
 			skip_whitespace(c);
 			if(**c != ']'){
-				fprintf(stderr, "Expected ']'\n");
-				exit(1);
+				snprintf(error_message, sizeof(error_message), "Expected ']'");
+				do_error(1);
 			}
 			++*c;
 		}

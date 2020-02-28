@@ -8,20 +8,65 @@
 
 int num_vars = 0;
 int num_strs = 0;
+int current_line = 1;
 type return_type;
+static char *program_beginning;
+static char *program_pointer;
+
+char warning_message[256] = {0};
+char error_message[256] = {0};
+
+static void print_line(){
+	char *line_pointer;
+	char *line_beginning;
+
+	line_pointer = program_pointer;
+	fprintf(stderr, "Line %d:\n", current_line);
+	while(line_pointer != program_beginning && line_pointer[-1] != '\n'){
+		line_pointer--;
+	}
+	while(*line_pointer && line_pointer != program_pointer && (*line_pointer == ' ' || *line_pointer == '\t')){
+		line_pointer++;
+	}
+	line_beginning = line_pointer;
+	while(*line_pointer && *line_pointer != '\n'){
+		fputc(*line_pointer, stderr);
+		line_pointer++;
+	}
+	fputc('\n', stderr);
+	while(line_beginning != program_pointer){
+		fputc(' ', stderr);
+		line_beginning++;
+	}
+	fprintf(stderr, "^\n");
+}
+
+void do_warning(){
+	warning_message[255] = '\0';
+	print_line();
+	fprintf(stderr, "Warning: %s\n", warning_message);
+}
+
+void do_error(int status){
+	error_message[255] = '\0';
+	print_line();
+	fprintf(stderr, "Error: %s\n", error_message);
+	free_local_variables();
+	free_global_variables();
+	exit(status);
+}
 
 void compile_program(char *program, char *identifier_name, char *arguments, unsigned int identifier_length, unsigned int num_arguments){
-	char *c;
-
-	c = program;
-	skip_whitespace(&c);
+	program_pointer = program;
+	program_beginning = program;
+	skip_whitespace(&program_pointer);
 	printf(".data\n");
-	compile_string_constants(c);
-	printf(".text\n");
-	while(*c){
-		compile_function(&c, identifier_name, arguments, identifier_length, num_arguments);
+	compile_string_constants(program_pointer);
+	printf(".text\n\n");
+	while(*program_pointer){
+		compile_function(&program_pointer, identifier_name, arguments, identifier_length, num_arguments);
 		free_local_variables();
-		skip_whitespace(&c);
+		skip_whitespace(&program_pointer);
 	}
 	free_global_variables();
 }
@@ -37,21 +82,21 @@ void compile_function(char **c, char *identifier_name, char *arguments, unsigned
 	parse_type(&t, c, identifier_name, arguments, identifier_length, num_arguments);
 
 	if(!identifier_name){
-		fprintf(stderr, "Expected identifier name\n");
-		exit(1);
+		snprintf(error_message, sizeof(error_message), "Expected identifier name");
+		do_error(1);
 	}
 	skip_whitespace(c);
 	if(peek_type(t) != type_function){
 		skip_whitespace(c);
 		if(**c != ';'){
-			fprintf(stderr, "Expected ';'\n");
-			exit(1);
+			snprintf(error_message, sizeof(error_message), "Expected ';'");
+			do_error(1);
 		}
 		++*c;
 		var = read_dictionary(global_variables, identifier_name, 0);
 		if(var){
-			fprintf(stderr, "Error: Duplicate definitions of non-function data\n");
-			exit(1);
+			snprintf(error_message, sizeof(error_message), "Duplicate definitions of non-function data");
+			do_error(1);
 		}
 		var = malloc(sizeof(variable));
 		var->var_type = t;
@@ -59,11 +104,11 @@ void compile_function(char **c, char *identifier_name, char *arguments, unsigned
 		var->leave_as_address = 0;
 		strcpy(var->varname, identifier_name);
 		write_dictionary(&global_variables, var->varname, var, 0);
-		printf(".data\n%s:\n.space %d\n\n.text\n", identifier_name, align4(type_size(t)));
+		printf(".data\n.align 2\n%s:\n.space %d\n.text\n", identifier_name, align4(type_size(t)));
 	} else {
 		if(!*identifier_name){
-			fprintf(stderr, "Expected function name\n");
-			exit(1);
+			snprintf(error_message, sizeof(error_message), "Expected function name");
+			do_error(1);
 		}
 		var = read_dictionary(global_variables, identifier_name, 0);
 		if(!var){
@@ -73,11 +118,16 @@ void compile_function(char **c, char *identifier_name, char *arguments, unsigned
 			var->leave_as_address = 1;
 			strcpy(var->varname, identifier_name);
 			write_dictionary(&global_variables, var->varname, var, 0);
+		} else {
+			if(!types_equal(var->var_type, t)){
+				snprintf(error_message, sizeof(error_message), "Incompatible function definitions");
+				do_error(1);
+			}
 		}
 		if(**c != '{'){
 			if(**c != ';'){
-				fprintf(stderr, "Expected '{' or ';' instead of '%c'\n", **c);
-				exit(1);
+				snprintf(error_message, sizeof(error_message), "Expected '{' or ';' instead of '%c'", **c);
+				do_error(1);
 			}
 			++*c;
 			return;
@@ -87,8 +137,8 @@ void compile_function(char **c, char *identifier_name, char *arguments, unsigned
 		pop_type(&t);
 		while(peek_type(t) != type_returns){
 			if(current_argument >= num_arguments){
-				fprintf(stderr, "Too many arguments!\n");
-				exit(1);
+				snprintf(error_message, sizeof(error_message), "Too many arguments!");
+				do_error(1);
 			}
 			argument_type = get_argument_type(&t);
 			local_var = malloc(sizeof(variable));
@@ -105,8 +155,8 @@ void compile_function(char **c, char *identifier_name, char *arguments, unsigned
 		pop_type(&t);
 		return_type = t;
 		if(peek_type(return_type) == type_function){
-			fprintf(stderr, "Error: function cannot return function\n");
-			exit(1);
+			snprintf(error_message, sizeof(error_message), "Function cannot return function");
+			do_error(1);
 		}
 		compile_block(c, 1);
 		++*c;
@@ -149,8 +199,8 @@ void compile_statement(char **c){
 		*c += 2;
 		skip_whitespace(c);
 		if(**c != '('){
-			fprintf(stderr, "Expected '('\n");
-			exit(1);
+			snprintf(error_message, sizeof(error_message), "Expected '('");
+			do_error(1);;
 		}
 		++*c;
 		expression_output = compile_expression(c, 1, 0);
@@ -165,8 +215,8 @@ void compile_statement(char **c){
 		deallocate(expression_output.data);
 		skip_whitespace(c);
 		if(**c != ')'){
-			fprintf(stderr, "Expected ')'\n");
-			exit(1);
+			snprintf(error_message, sizeof(error_message), "Expected ')'");
+			do_error(1);
 		}
 		++*c;
 		skip_whitespace(c);
@@ -174,8 +224,8 @@ void compile_statement(char **c){
 			++*c;
 			compile_block(c, 0);
 			if(**c != '}'){
-				fprintf(stderr, "Expected '}'\n");
-				exit(1);
+				snprintf(error_message, sizeof(error_message), "Expected '}'");
+				do_error(1);
 			}
 			++*c;
 		} else {
@@ -186,8 +236,8 @@ void compile_statement(char **c){
 		*c += 5;
 		skip_whitespace(c);
 		if(**c != '('){
-			fprintf(stderr, "Expected '('\n");
-			exit(1);
+			snprintf(error_message, sizeof(error_message), "Expected '('");
+			do_error(1);
 		}
 		++*c;
 		label_num0 = num_labels;
@@ -204,8 +254,8 @@ void compile_statement(char **c){
 		deallocate(expression_output.data);
 		skip_whitespace(c);
 		if(**c != ')'){
-			fprintf(stderr, "Expected ')'\n");
-			exit(1);
+			snprintf(error_message, sizeof(error_message), "Expected ')'");
+			do_error(1);
 		}
 		++*c;
 		skip_whitespace(c);
@@ -216,8 +266,8 @@ void compile_statement(char **c){
 			compile_statement(c);
 		}
 		if(**c != '}'){
-			fprintf(stderr, "Expected '}'\n");
-			exit(1);
+			snprintf(error_message, sizeof(error_message), "Expected '}'");
+			do_error(1);
 		}
 		++*c;
 		printf("j __L%d\n", label_num0);
@@ -227,15 +277,15 @@ void compile_statement(char **c){
 		skip_whitespace(c);
 		if(types_equal(return_type, VOID_TYPE)){
 			if(**c != ';'){
-				fprintf(stderr, "Expected ';' for return in void function\n");
-				exit(1);
+				snprintf(error_message, sizeof(error_message), "Expected ';' for return in void function");
+				do_error(1);
 			}
 			++*c;
 		} else {
 			expression_output = compile_expression(c, 1, 0);
 			if(**c != ';'){
-				fprintf(stderr, "Expected ';'\n");
-				exit(1);
+				snprintf(error_message, sizeof(error_message), "Expected ';'");
+				do_error(1);
 			}
 			++*c;
 			cast(expression_output, return_type, 1);
@@ -256,8 +306,8 @@ void compile_statement(char **c){
 		if(**c == ';'){
 			++*c;
 		} else {
-			fprintf(stderr, "Expected ';'\n");
-			exit(1);
+			snprintf(error_message, sizeof(error_message), "Expected ';'");
+			do_error(1);
 		}
 	}
 }
@@ -275,8 +325,8 @@ void place_string_constant(char **c){
 	}
 
 	if(!**c){
-		fprintf(stderr, "Error: Expected closing '\"'\n");
-		exit(1);
+		snprintf(error_message, sizeof(error_message), "Expected closing '\"'");
+		do_error(1);
 	}
 	printf("\"");
 	++*c;
@@ -291,7 +341,7 @@ void compile_string_constants(char *c){
 			printf("__str%d:\n", num_strs);
 			printf(".asciiz \"");
 			place_string_constant(&c);
-			printf("\n\n");
+			printf("\n");
 			num_strs++;
 		}
 	}
