@@ -1,5 +1,6 @@
 # MinimalCC
 Minimal C subset compiler intended to eventually run on my calculator
+
 However, it currently compiles to MIPS assembly which runs on MARS and SPIM.
 
 Build using `make`, which will produce an executable named `mcc`.
