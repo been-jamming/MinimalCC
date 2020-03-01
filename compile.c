@@ -16,13 +16,14 @@ static char *program_beginning;
 static char *program_pointer;
 static char *source_files[MAX_SOURCEFILES] = {NULL};
 static char **current_source_file;
+static FILE *output_file;
 
 char warning_message[256] = {0};
 char error_message[256] = {0};
 
 enum cmd_argtype{
-	source_file,
-	output_file
+	cmd_source_file,
+	cmd_output_file
 };
 
 static void print_line(){
@@ -57,6 +58,7 @@ void do_warning(){
 }
 
 void do_error(int status){
+	fclose(output_file);
 	error_message[255] = '\0';
 	print_line();
 	fprintf(stderr, "Error: %s\n", error_message);
@@ -358,17 +360,17 @@ void compile_string_constants(char *c, FILE *output_file){
 void parse_arguments(int argc, char **argv, char *filenames[], unsigned int num_filenames, char **output_filename){
 	unsigned int current_arg;
 	unsigned int current_filename = 0;
-	enum cmd_argtype argtype = source_file;
+	enum cmd_argtype argtype = cmd_source_file;
 
 	for(current_arg = 1; current_arg < argc; current_arg++){
 		switch(argtype){
-			case source_file:
+			case cmd_source_file:
 				if(argv[current_arg][0] == '-'){
 					if(argv[current_arg][1] == 'h' || (argv[current_arg][1] == '-' && argv[current_arg][2] == 'h')){//Display help message
 						printf("Arguments:\n-h --help     Displays this help message\n-o            Specify output file\n\nTo compile:\nmcc [SOURCE1] [SOURCE2] [SOURCE3] ... -o [OUTPUT_FILE]\n");
 						exit(1);
 					} else if(argv[current_arg][1] == 'o'){
-						argtype = output_file;
+						argtype = cmd_output_file;
 					} else {
 						fprintf(stderr, "Unrecognized option '%s'\n", argv[current_arg]);
 						exit(1);
@@ -383,13 +385,13 @@ void parse_arguments(int argc, char **argv, char *filenames[], unsigned int num_
 					}
 				}
 				break;
-			case output_file:
+			case cmd_output_file:
 				if(argv[current_arg][0] == '-'){
 					fprintf(stderr, "Expected output file name after '-o'\n");
 					exit(1);
 				}
 				*output_filename = argv[current_arg];
-				argtype = source_file;
+				argtype = cmd_source_file;
 				break;
 		}
 	}
@@ -399,7 +401,6 @@ int main(int argc, char **argv){
 	char identifier_name[32];
 	char arguments[32*32];
 	FILE *fp;
-	FILE *output_file;
 	unsigned int file_size;
 	char *program;
 	char *output_filename = NULL;
