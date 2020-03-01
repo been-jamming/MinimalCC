@@ -53,18 +53,18 @@ void deallocate(data_entry entry){
 	}
 }
 
-static void store_register(unsigned char reg){
-	printf("sw $s%d, %d($sp)\n", (int) reg, -(int) stack_size);
+static void store_register(unsigned char reg, FILE *output_file){
+	fprintf(output_file, "sw $s%d, %d($sp)\n", (int) reg, -(int) stack_size);
 	stack_size += 4;
 }
 
-reg_list push_registers(){
+reg_list push_registers(FILE *output_file){
 	reg_list output;
 	int i;
 
 	output = register_list;
 	for(i = register_list.num_allocated - 1; i >= 0; i--){
-		store_register(register_list.registers[i]);
+		store_register(register_list.registers[i], output_file);
 	}
 	register_list.num_allocated = 0;
 
@@ -78,16 +78,16 @@ int get_reg_stack_pos(reg_list regs, unsigned char reg){
 	return stack_size - REGISTER_SIZE*(index + 1);
 }
 
-static void load_register(unsigned char reg){
+static void load_register(unsigned char reg, FILE *output_file){
 	stack_size -= 4;
-	printf("lw $s%d, %d($sp)\n", (int) reg, -(int) stack_size);
+	fprintf(output_file, "lw $s%d, %d($sp)\n", (int) reg, -(int) stack_size);
 }
 
-void pull_registers(reg_list regs){
+void pull_registers(reg_list regs, FILE *output_file){
 	unsigned int i;
 
 	for(i = 0; i < regs.num_allocated; i++){
-		load_register(regs.registers[i]);
+		load_register(regs.registers[i], output_file);
 	}
 
 	register_list = regs;

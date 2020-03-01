@@ -11,14 +11,14 @@ unsigned int num_labels = 0;
 unsigned int current_string = 0;
 unsigned int order_of_operations[] = {0, 6, 6, 7, 7, 1, 5, 5, 4, 4, 3, 2, 7};
 
-type operation_none_func(char *reg_a, char *reg_b, value value_a, value value_b){
+type operation_none_func(char *reg_a, char *reg_b, value value_a, value value_b, FILE *output_file){
 	snprintf(error_message, sizeof(error_message), "Unrecognized operation");
 	do_error(1);
 
 	return value_a.data_type;
 }
 
-type operation_add_func(char *reg_a, char *reg_b, value value_a, value value_b){
+type operation_add_func(char *reg_a, char *reg_b, value value_a, value value_b, FILE *output_file){
 	type pointer_type;
 	value pointer_value;
 	char *integer_reg;
@@ -31,7 +31,7 @@ type operation_add_func(char *reg_a, char *reg_b, value value_a, value value_b){
 		if(peek_type(value_b.data_type) == type_pointer){
 			snprintf(warning_message, sizeof(warning_message), "Adding two pointers together. Treating them as integers instead");
 			do_warning();
-			printf("add %s, %s, %s\n", reg_a, reg_a, reg_b);
+			fprintf(output_file, "add %s, %s, %s\n", reg_a, reg_a, reg_b);
 			return value_a.data_type;
 		}
 		pointer_value = value_a;
@@ -41,25 +41,25 @@ type operation_add_func(char *reg_a, char *reg_b, value value_a, value value_b){
 			pointer_value = value_b;
 			integer_reg = reg_a;
 		} else {
-			printf("add %s, %s, %s\n", reg_a, reg_a, reg_b);
+			fprintf(output_file, "add %s, %s, %s\n", reg_a, reg_a, reg_b);
 			return INT_TYPE;
 		}
 	}
 	pointer_type = pointer_value.data_type;
 	pop_type(&pointer_type);
 	if(type_size(pointer_type) == 4){
-		printf("sll %s, %s, 2\n", integer_reg, integer_reg);
+		fprintf(output_file, "sll %s, %s, 2\n", integer_reg, integer_reg);
 	} else if(type_size(pointer_type) != 1){
-		printf("li $t2, %d\n", type_size(pointer_type));
-		printf("mult %s, $t2\n", integer_reg);
-		printf("mflo %s\n", integer_reg);
+		fprintf(output_file, "li $t2, %d\n", type_size(pointer_type));
+		fprintf(output_file, "mult %s, $t2\n", integer_reg);
+		fprintf(output_file, "mflo %s\n", integer_reg);
 	}
-	printf("add %s, %s, %s\n", reg_a, reg_a, reg_b);
+	fprintf(output_file, "add %s, %s, %s\n", reg_a, reg_a, reg_b);
 
 	return pointer_value.data_type;
 }
 
-type operation_subtract_func(char *reg_a, char *reg_b, value value_a, value value_b){
+type operation_subtract_func(char *reg_a, char *reg_b, value value_a, value value_b, FILE *output_file){
 	type pointer_type;
 	type pointer_type2;
 	value pointer_value;
@@ -79,13 +79,13 @@ type operation_subtract_func(char *reg_a, char *reg_b, value value_a, value valu
 				snprintf(error_message, sizeof(error_message), "Cannot subtract pointers to different types");
 				do_error(1);
 			}
-			printf("sub %s, %s, %s\n", reg_a, reg_a, reg_b);
+			fprintf(output_file, "sub %s, %s, %s\n", reg_a, reg_a, reg_b);
 			if(type_size(pointer_type) == 4){
-				printf("sra %s, %s, 2\n", reg_a, reg_a);
+				fprintf(output_file, "sra %s, %s, 2\n", reg_a, reg_a);
 			} else if(type_size(pointer_type) != 1){
-				printf("li $t2, %d\n", type_size(pointer_type));
-				printf("div %s, $t2\n", reg_a);
-				printf("mflo %s\n", reg_a);
+				fprintf(output_file, "li $t2, %d\n", type_size(pointer_type));
+				fprintf(output_file, "div %s, $t2\n", reg_a);
+				fprintf(output_file, "mflo %s\n", reg_a);
 			}
 			return INT_TYPE;
 		}
@@ -96,55 +96,55 @@ type operation_subtract_func(char *reg_a, char *reg_b, value value_a, value valu
 			pointer_value = value_b;
 			integer_reg = reg_a;
 		} else {
-			printf("sub %s, %s, %s\n", reg_a, reg_a, reg_b);
+			fprintf(output_file, "sub %s, %s, %s\n", reg_a, reg_a, reg_b);
 			return INT_TYPE;
 		}
 	}
 	pointer_type = pointer_value.data_type;
 	pop_type(&pointer_type);
 	if(type_size(pointer_type) == 4){
-		printf("sll %s, %s, 2\n", integer_reg, integer_reg);
+		fprintf(output_file, "sll %s, %s, 2\n", integer_reg, integer_reg);
 	} else if(type_size(pointer_type) != 1){
-		printf("li $t2, %d\n", type_size(pointer_type));
-		printf("mult %s, $t2\n", integer_reg);
-		printf("mflo %s\n", integer_reg);
+		fprintf(output_file, "li $t2, %d\n", type_size(pointer_type));
+		fprintf(output_file, "mult %s, $t2\n", integer_reg);
+		fprintf(output_file, "mflo %s\n", integer_reg);
 	}
-	printf("sub %s, %s, %s\n", reg_a, reg_a, reg_b);
+	fprintf(output_file, "sub %s, %s, %s\n", reg_a, reg_a, reg_b);
 
 	return pointer_value.data_type;
 }
 
-type operation_multiply_func(char *reg_a, char *reg_b, value value_a, value value_b){
+type operation_multiply_func(char *reg_a, char *reg_b, value value_a, value value_b, FILE *output_file){
 	if((!types_equal(value_a.data_type, INT_TYPE) && !types_equal(value_a.data_type, CHAR_TYPE)) || (!types_equal(value_b.data_type, INT_TYPE) && !types_equal(value_b.data_type, CHAR_TYPE))){
 		snprintf(error_message, sizeof(error_message), "Cannot multiply non-int types");
 		do_error(1);
 	}
-	printf("mult %s, %s\n", reg_a, reg_b);
-	printf("mflo %s\n", reg_a);
+	fprintf(output_file, "mult %s, %s\n", reg_a, reg_b);
+	fprintf(output_file, "mflo %s\n", reg_a);
 	return INT_TYPE;
 }
 
-type operation_divide_func(char *reg_a, char *reg_b, value value_a, value value_b){
+type operation_divide_func(char *reg_a, char *reg_b, value value_a, value value_b, FILE *output_file){
 	if((!types_equal(value_a.data_type, INT_TYPE) && !types_equal(value_a.data_type, CHAR_TYPE)) || (!types_equal(value_b.data_type, INT_TYPE) && !types_equal(value_b.data_type, CHAR_TYPE))){
 		snprintf(error_message, sizeof(error_message), "Cannot divide non-int types");
 		do_error(1);
 	}
-	printf("div %s, %s\n", reg_a, reg_b);
-	printf("mflo %s\n", reg_a);
+	fprintf(output_file, "div %s, %s\n", reg_a, reg_b);
+	fprintf(output_file, "mflo %s\n", reg_a);
 	return INT_TYPE;
 }
 
-type operation_modulo_func(char *reg_a, char *reg_b, value value_a, value value_b){
+type operation_modulo_func(char *reg_a, char *reg_b, value value_a, value value_b, FILE *output_file){
 	if((!types_equal(value_a.data_type, INT_TYPE) && !types_equal(value_a.data_type, CHAR_TYPE)) || (!types_equal(value_b.data_type, INT_TYPE) && !types_equal(value_b.data_type, CHAR_TYPE))){
 		snprintf(error_message, sizeof(error_message), "Cannot modulo non-int types");
 		do_error(1);
 	}
-	printf("div %s, %s\n", reg_a, reg_b);
-	printf("mfhi %s\n", reg_a);
+	fprintf(output_file, "div %s, %s\n", reg_a, reg_b);
+	fprintf(output_file, "mfhi %s\n", reg_a);
 	return INT_TYPE;
 }
 
-type operation_assign_func(char *reg_a, char *reg_b, value value_a, value value_b){
+type operation_assign_func(char *reg_a, char *reg_b, value value_a, value value_b, FILE *output_file){
 	if(!value_a.is_reference){
 		snprintf(error_message, sizeof(error_message), "Cannot assign to r-value");
 		do_error(1);
@@ -155,33 +155,33 @@ type operation_assign_func(char *reg_a, char *reg_b, value value_a, value value_
 		do_error(1);
 	}
 	if(type_size(value_a.data_type) == 4){
-		printf("sw %s, 0(%s)\n", reg_b, reg_a);
+		fprintf(output_file, "sw %s, 0(%s)\n", reg_b, reg_a);
 	} else if(type_size(value_a.data_type) == 1){
-		printf("sb %s, 0(%s)\n", reg_b, reg_a);
+		fprintf(output_file, "sb %s, 0(%s)\n", reg_b, reg_a);
 	}
-	printf("move %s, %s\n", reg_a, reg_b);
+	fprintf(output_file, "move %s, %s\n", reg_a, reg_b);
 	return value_b.data_type;
 }
 
-type operation_less_than_func(char *reg_a, char *reg_b, value value_a, value value_b){
+type operation_less_than_func(char *reg_a, char *reg_b, value value_a, value value_b, FILE *output_file){
 	if((!types_equal(value_a.data_type, INT_TYPE) && !types_equal(value_a.data_type, CHAR_TYPE)) || (!types_equal(value_b.data_type, INT_TYPE) && !types_equal(value_b.data_type, CHAR_TYPE))){
 		snprintf(error_message, sizeof(error_message), "Cannot compare non-int types with '<'");
 		do_error(1);
 	}
-	printf("slt %s, %s, %s\n", reg_a, reg_a, reg_b);
+	fprintf(output_file, "slt %s, %s, %s\n", reg_a, reg_a, reg_b);
 	return INT_TYPE;
 }
 
-type operation_greater_than_func(char *reg_a, char *reg_b, value value_a, value value_b){
+type operation_greater_than_func(char *reg_a, char *reg_b, value value_a, value value_b, FILE *output_file){
 	if((!types_equal(value_a.data_type, INT_TYPE) && !types_equal(value_a.data_type, CHAR_TYPE)) || (!types_equal(value_b.data_type, INT_TYPE) && !types_equal(value_b.data_type, CHAR_TYPE))){
 		snprintf(error_message, sizeof(error_message), "Cannot compare non-int types with '>'");
 		do_error(1);
 	}
-	printf("sgt %s, %s, %s\n", reg_a, reg_a, reg_b);
+	fprintf(output_file, "sgt %s, %s, %s\n", reg_a, reg_a, reg_b);
 	return INT_TYPE;
 }
 
-type operation_equals_func(char *reg_a, char *reg_b, value value_a, value value_b){
+type operation_equals_func(char *reg_a, char *reg_b, value value_a, value value_b, FILE *output_file){
 	if(peek_type(value_a.data_type) == type_function || peek_type(value_b.data_type) == type_function){
 		snprintf(error_message, sizeof(error_message), "Cannot compare function types");
 		do_error(1);
@@ -194,12 +194,12 @@ type operation_equals_func(char *reg_a, char *reg_b, value value_a, value value_
 				snprintf(warning_message, sizeof(warning_message), "Comparing incompatible data types");
 				do_warning();
 			}
-			printf("seq %s, %s, %s\n", reg_a, reg_a, reg_b);
+			fprintf(output_file, "seq %s, %s, %s\n", reg_a, reg_a, reg_b);
 			return INT_TYPE;
 		} else {
 			snprintf(warning_message, sizeof(warning_message), "Comparing pointer and non-pointer types");
 			do_warning();
-			printf("seq %s, %s, %s\n", reg_a, reg_a, reg_b);
+			fprintf(output_file, "seq %s, %s, %s\n", reg_a, reg_a, reg_b);
 			return INT_TYPE;
 		}
 	} else {
@@ -207,12 +207,12 @@ type operation_equals_func(char *reg_a, char *reg_b, value value_a, value value_
 			snprintf(warning_message, sizeof(warning_message), "Comparing pointer and non-pointer types");
 			do_warning();
 		}
-		printf("seq %s, %s, %s\n", reg_a, reg_a, reg_b);
+		fprintf(output_file, "seq %s, %s, %s\n", reg_a, reg_a, reg_b);
 		return INT_TYPE;
 	}
 }
 
-type operation_not_equals_func(char *reg_a, char *reg_b, value value_a, value value_b){
+type operation_not_equals_func(char *reg_a, char *reg_b, value value_a, value value_b, FILE *output_file){
 	if(peek_type(value_a.data_type) == type_function || peek_type(value_b.data_type) == type_function){
 		snprintf(error_message, sizeof(error_message), "Cannot compare function types");
 		do_error(1);
@@ -225,12 +225,12 @@ type operation_not_equals_func(char *reg_a, char *reg_b, value value_a, value va
 				snprintf(warning_message, sizeof(warning_message), "Comparing incompatible data types");
 				do_warning();
 			}
-			printf("sne %s, %s, %s\n", reg_a, reg_a, reg_b);
+			fprintf(output_file, "sne %s, %s, %s\n", reg_a, reg_a, reg_b);
 			return INT_TYPE;
 		} else {
 			snprintf(warning_message, sizeof(warning_message), "Comparing pointer and non-pointer types");
 			do_warning();
-			printf("sne %s, %s, %s\n", reg_a, reg_a, reg_b);
+			fprintf(output_file, "sne %s, %s, %s\n", reg_a, reg_a, reg_b);
 			return INT_TYPE;
 		}
 	} else {
@@ -238,30 +238,30 @@ type operation_not_equals_func(char *reg_a, char *reg_b, value value_a, value va
 			snprintf(warning_message, sizeof(warning_message), "Comparing pointer and non-pointer types");
 			do_warning();
 		}
-		printf("sne %s, %s, %s\n", reg_a, reg_a, reg_b);
+		fprintf(output_file, "sne %s, %s, %s\n", reg_a, reg_a, reg_b);
 		return INT_TYPE;
 	}
 }
 
-type operation_and_func(char *reg_a, char *reg_b, value value_a, value value_b){
+type operation_and_func(char *reg_a, char *reg_b, value value_a, value value_b, FILE *output_file){
 	if((!types_equal(value_a.data_type, INT_TYPE) && !types_equal(value_a.data_type, CHAR_TYPE)) || (!types_equal(value_b.data_type, INT_TYPE) && !types_equal(value_b.data_type, CHAR_TYPE))){
 		snprintf(error_message, sizeof(error_message), "Cannot '&' non-int types");
 		do_error(1);
 	}
-	printf("and %s, %s, %s\n", reg_a, reg_a, reg_b);
+	fprintf(output_file, "and %s, %s, %s\n", reg_a, reg_a, reg_b);
 	return INT_TYPE;
 }
 
-type operation_or_func(char *reg_a, char *reg_b, value value_a, value value_b){
+type operation_or_func(char *reg_a, char *reg_b, value value_a, value value_b, FILE *output_file){
 	if((!types_equal(value_a.data_type, INT_TYPE) && !types_equal(value_a.data_type, CHAR_TYPE)) || (!types_equal(value_b.data_type, INT_TYPE) && !types_equal(value_b.data_type, CHAR_TYPE))){
 		snprintf(error_message, sizeof(error_message), "Cannot '|' non-int types");
 		do_error(1);
 	}
-	printf("or %s, %s, %s\n", reg_a, reg_a, reg_b);
+	fprintf(output_file, "or %s, %s, %s\n", reg_a, reg_a, reg_b);
 	return INT_TYPE;
 }
 
-type (*operation_functions[])(char *, char *, value, value) = {operation_none_func, operation_add_func, operation_subtract_func, operation_multiply_func, operation_divide_func, operation_assign_func, operation_less_than_func, operation_greater_than_func, operation_equals_func, operation_not_equals_func, operation_and_func, operation_or_func, operation_modulo_func};
+type (*operation_functions[])(char *, char *, value, value, FILE *) = {operation_none_func, operation_add_func, operation_subtract_func, operation_multiply_func, operation_divide_func, operation_assign_func, operation_less_than_func, operation_greater_than_func, operation_equals_func, operation_not_equals_func, operation_and_func, operation_or_func, operation_modulo_func};
 
 int type_size(type t){
 	switch(pop_type(&t)){
@@ -336,7 +336,7 @@ void compile_variable_initializer(char **c){
 	++*c;
 }
 
-value compile_integer(char **c, unsigned char dereference, unsigned char force_stack){
+value compile_integer(char **c, unsigned char dereference, unsigned char force_stack, FILE *output_file){
 	value output;
 	int int_value;
 
@@ -347,16 +347,16 @@ value compile_integer(char **c, unsigned char dereference, unsigned char force_s
 	output.data = allocate(force_stack);
 	int_value = strtol(*c, c, 10);
 	if(output.data.type == data_register){
-		printf("li $s%d, %d\n", (int) output.data.reg, int_value);
+		fprintf(output_file, "li $s%d, %d\n", (int) output.data.reg, int_value);
 	} else if(output.data.type == data_stack){
-		printf("li $t0, %d\nsw $t0, %d($sp)\n", int_value, -(int) output.data.stack_pos);
+		fprintf(output_file, "li $t0, %d\nsw $t0, %d($sp)\n", int_value, -(int) output.data.stack_pos);
 	}
 	output.data_type = INT_TYPE;
 
 	return output;
 }
 
-static value compile_local_variable(variable *var, unsigned char dereference, unsigned char force_stack){
+static value compile_local_variable(variable *var, unsigned char dereference, unsigned char force_stack, FILE *output_file){
 	data_entry data;
 	type data_type;
 	value output;
@@ -368,10 +368,10 @@ static value compile_local_variable(variable *var, unsigned char dereference, un
 	if(dereference){
 		if(peek_type(var->var_type) == type_list){
 			if(data.type == data_register){
-				printf("addi $s%d, $sp, %d\n", data.reg, variables_size - var->stack_pos);
+				fprintf(output_file, "addi $s%d, $sp, %d\n", data.reg, variables_size - var->stack_pos);
 			} else if(data.type == data_stack){
-				printf("addi $t0, $sp, %d\n", variables_size - var->stack_pos);
-				printf("sw $t0, %d($sp)\n", -(int) data.stack_pos);
+				fprintf(output_file, "addi $t0, $sp, %d\n", variables_size - var->stack_pos);
+				fprintf(output_file, "sw $t0, %d($sp)\n", -(int) data.stack_pos);
 			}
 			pop_type(&(output.data_type));
 			output.data_type.current_index--;
@@ -380,22 +380,22 @@ static value compile_local_variable(variable *var, unsigned char dereference, un
 			if(data.type == data_register){
 				switch(type_size(data_type)){
 					case 1:
-						printf("lb $s%d, %d($sp)\n", data.reg, variables_size - var->stack_pos);
+						fprintf(output_file, "lb $s%d, %d($sp)\n", data.reg, variables_size - var->stack_pos);
 						break;
 					case 4:
-						printf("lw $s%d, %d($sp)\n", data.reg, variables_size - var->stack_pos);
+						fprintf(output_file, "lw $s%d, %d($sp)\n", data.reg, variables_size - var->stack_pos);
 						break;
 
 				}
 			} else if(data.type == data_stack){
 				switch(type_size(data_type)){
 					case 1:
-						printf("lb $t0, %d($sp)\n", variables_size - var->stack_pos);
-						printf("sb $t0, %d($sp)\n", -(int) data.stack_pos);
+						fprintf(output_file, "lb $t0, %d($sp)\n", variables_size - var->stack_pos);
+						fprintf(output_file, "sb $t0, %d($sp)\n", -(int) data.stack_pos);
 						break;
 					case 4:
-						printf("lw $t0, %d($sp)\n", variables_size - var->stack_pos);
-						printf("sw $t0, %d($sp)\n", -(int) data.stack_pos);
+						fprintf(output_file, "lw $t0, %d($sp)\n", variables_size - var->stack_pos);
+						fprintf(output_file, "sw $t0, %d($sp)\n", -(int) data.stack_pos);
 						break;
 				}
 			}
@@ -403,17 +403,17 @@ static value compile_local_variable(variable *var, unsigned char dereference, un
 	} else {
 		if(peek_type(var->var_type) == type_list){
 			if(data.type == data_register){
-				printf("addi $s%d, $sp, %d\n", data.reg, variables_size - var->stack_pos);
+				fprintf(output_file, "addi $s%d, $sp, %d\n", data.reg, variables_size - var->stack_pos);
 			} else if(data.type == data_stack){
-				printf("addi $t0, $sp, %d\n", variables_size - var->stack_pos);
-				printf("sw $t0, %d($sp)\n", -(int) data.stack_pos);
+				fprintf(output_file, "addi $t0, $sp, %d\n", variables_size - var->stack_pos);
+				fprintf(output_file, "sw $t0, %d($sp)\n", -(int) data.stack_pos);
 			}
 		} else {
 			if(data.type == data_register){
-				printf("addi $s%d, $sp, %d\n", data.reg, variables_size - var->stack_pos);
+				fprintf(output_file, "addi $s%d, $sp, %d\n", data.reg, variables_size - var->stack_pos);
 			} else if(data.type == data_stack){
-				printf("addi $t0, $sp, %d\n", variables_size - var->stack_pos);
-				printf("sw $t0, %d($sp)\n", -(int) data.stack_pos);
+				fprintf(output_file, "addi $t0, $sp, %d\n", variables_size - var->stack_pos);
+				fprintf(output_file, "sw $t0, %d($sp)\n", -(int) data.stack_pos);
 			}
 		}
 		add_type_entry(&(output.data_type), type_pointer);
@@ -422,7 +422,7 @@ static value compile_local_variable(variable *var, unsigned char dereference, un
 	return output;
 }
 
-static value compile_global_variable(variable *var, unsigned char dereference, unsigned char force_stack){
+static value compile_global_variable(variable *var, unsigned char dereference, unsigned char force_stack, FILE *output_file){
 	data_entry data;
 	type data_type;
 	value output;
@@ -430,9 +430,9 @@ static value compile_global_variable(variable *var, unsigned char dereference, u
 	data_type = var->var_type;
 	data = allocate(force_stack);
 	if(data.type == data_register){
-		printf("la $s%d, %s\n", data.reg, var->varname);
+		fprintf(output_file, "la $s%d, %s\n", data.reg, var->varname);
 	} else {
-		printf("la $t0, %s\n", var->varname);
+		fprintf(output_file, "la $t0, %s\n", var->varname);
 	}
 	output.data = data;
 	output.is_reference = !dereference;
@@ -442,20 +442,20 @@ static value compile_global_variable(variable *var, unsigned char dereference, u
 			data_type.current_index--;
 			add_type_entry(&data_type, type_pointer);
 			if(data.type == data_stack){
-				printf("sw $t0, %d($sp)\n", -(int) data.stack_pos);
+				fprintf(output_file, "sw $t0, %d($sp)\n", -(int) data.stack_pos);
 			}
 		} else {
 			if(data.type == data_register){
-				printf("lw $s%d, 0($s%d)\n", data.reg, data.reg);
+				fprintf(output_file, "lw $s%d, 0($s%d)\n", data.reg, data.reg);
 			} else if(data.type == data_stack){
-				printf("lw $t0, 0($t0)\n");
-				printf("sw $t0, %d($sp)\n", -(int) data.stack_pos);
+				fprintf(output_file, "lw $t0, 0($t0)\n");
+				fprintf(output_file, "sw $t0, %d($sp)\n", -(int) data.stack_pos);
 			}
 		}
 	} else {
 		add_type_entry(&data_type, type_pointer);
 		if(data.type == data_stack){
-			printf("sw $t0, %d($sp)\n", -(int) data.stack_pos);
+			fprintf(output_file, "sw $t0, %d($sp)\n", -(int) data.stack_pos);
 		}
 	}
 	output.data_type = data_type;
@@ -463,7 +463,7 @@ static value compile_global_variable(variable *var, unsigned char dereference, u
 	return output;
 }
 
-value compile_variable(char **c, unsigned char dereference, unsigned char force_stack){
+value compile_variable(char **c, unsigned char dereference, unsigned char force_stack, FILE *output_file){
 	char *start;
 	char varname[32] = {0};
 	unsigned int varname_length = 0;
@@ -485,15 +485,15 @@ value compile_variable(char **c, unsigned char dereference, unsigned char force_
 			snprintf(error_message, sizeof(error_message), "Unrecognized variable '%s'", varname);
 			do_error(1);
 		}
-		return compile_global_variable(var, dereference, force_stack);
+		return compile_global_variable(var, dereference, force_stack, output_file);
 	} else {
-		return compile_local_variable(var, dereference, force_stack);
+		return compile_local_variable(var, dereference, force_stack, output_file);
 	}
 }
 
-value compile_expression(char **c, unsigned char dereference, unsigned char force_stack);
+value compile_expression(char **c, unsigned char dereference, unsigned char force_stack, FILE *output_file);
 
-value cast(value v, type t, unsigned char do_warn){
+value cast(value v, type t, unsigned char do_warn, FILE *output_file){
 	type t_copy;
 
 	if(types_equal(v.data_type, VOID_TYPE) && !types_equal(t, VOID_TYPE)){
@@ -508,18 +508,18 @@ value cast(value v, type t, unsigned char do_warn){
 
 	if(type_size(v.data_type) == 4 && type_size(t) == 1){
 		if(v.data.type == data_register){
-			printf("sll $s%d, $s%d, 24\n", v.data.reg, v.data.reg);
-			printf("sra $s%d, $s%d, 24\n", v.data.reg, v.data.reg);
+			fprintf(output_file, "sll $s%d, $s%d, 24\n", v.data.reg, v.data.reg);
+			fprintf(output_file, "sra $s%d, $s%d, 24\n", v.data.reg, v.data.reg);
 		} else if(v.data.type == data_stack){
-			printf("lw $t0, %d($sp)\n", -(int) v.data.stack_pos);
-			printf("sll $t0, $t0, 24\n");
-			printf("sra $t0, $t0, 24\n");
-			printf("sw $t0, %d($sp)\n", -(int) v.data.stack_pos);
+			fprintf(output_file, "lw $t0, %d($sp)\n", -(int) v.data.stack_pos);
+			fprintf(output_file, "sll $t0, $t0, 24\n");
+			fprintf(output_file, "sra $t0, $t0, 24\n");
+			fprintf(output_file, "sw $t0, %d($sp)\n", -(int) v.data.stack_pos);
 		}
 	} else if(type_size(v.data_type) == 1 && type_size(t) == 4){
 		if(v.data.type == data_stack){
-			printf("lb $t0, %d($sp)\n", -(int) v.data.stack_pos);
-			printf("sw $t0, %d($sp)\n", -(int) v.data.stack_pos);
+			fprintf(output_file, "lb $t0, %d($sp)\n", -(int) v.data.stack_pos);
+			fprintf(output_file, "sw $t0, %d($sp)\n", -(int) v.data.stack_pos);
 		}
 	}
 
@@ -533,7 +533,7 @@ value cast(value v, type t, unsigned char do_warn){
 	return v;
 }
 
-value compile_dereference(value v){
+value compile_dereference(value v, FILE *output_file){
 	type data_type;
 
 	data_type = v.data_type;
@@ -552,18 +552,18 @@ value compile_dereference(value v){
 	} else if(peek_type(data_type) != type_function){
 		if(v.data.type == data_register){
 			if(type_size(data_type) == 1){
-				printf("lb $s%d, 0($s%d)\n", v.data.reg, v.data.reg);
+				fprintf(output_file, "lb $s%d, 0($s%d)\n", v.data.reg, v.data.reg);
 			} else if(type_size(data_type) == 4){
-				printf("lw $s%d, 0($s%d)\n", v.data.reg, v.data.reg);
+				fprintf(output_file, "lw $s%d, 0($s%d)\n", v.data.reg, v.data.reg);
 			}
 		} else if(v.data.type == data_stack){
-			printf("lw $t0, %d($sp)\n", -(int) v.data.stack_pos);
+			fprintf(output_file, "lw $t0, %d($sp)\n", -(int) v.data.stack_pos);
 			if(type_size(data_type) == 1){
-				printf("lb $t0, 0($t0)\n");
-				printf("sb $t0, %d($sp)\n", -(int) v.data.stack_pos);
+				fprintf(output_file, "lb $t0, 0($t0)\n");
+				fprintf(output_file, "sb $t0, %d($sp)\n", -(int) v.data.stack_pos);
 			} else if(type_size(data_type) == 4){
-				printf("lw $t0, 0($t0)\n");
-				printf("sw $t0, %d($sp)\n", -(int) v.data.stack_pos);
+				fprintf(output_file, "lw $t0, 0($t0)\n");
+				fprintf(output_file, "sw $t0, %d($sp)\n", -(int) v.data.stack_pos);
 			}
 		}
 	}
@@ -572,7 +572,7 @@ value compile_dereference(value v){
 	return v;
 }
 
-value compile_function_call(char **c, value func){
+value compile_function_call(char **c, value func, FILE *output_file){
 	reg_list reg_state;
 	data_entry return_data;
 	data_entry return_address_data;
@@ -592,7 +592,7 @@ value compile_function_call(char **c, value func){
 
 	label_num = num_labels;
 	num_labels++;
-	reg_state = push_registers();
+	reg_state = push_registers(output_file);
 	stack_size_before = stack_size;
 
 	if(func.data.type == data_register){
@@ -600,8 +600,8 @@ value compile_function_call(char **c, value func){
 	}
 	return_address_data = allocate(1);
 	return_data = allocate(1);
-	printf("la $t0, __L%d\n", label_num);
-	printf("sw $t0, %d($sp)\n", -(int) return_address_data.stack_pos);
+	fprintf(output_file, "la $t0, __L%d\n", label_num);
+	fprintf(output_file, "sw $t0, %d($sp)\n", -(int) return_address_data.stack_pos);
 	if(peek_type(func.data_type) == type_returns){
 		skip_whitespace(c);
 		if(**c != ')'){
@@ -612,7 +612,7 @@ value compile_function_call(char **c, value func){
 	}
 	while(peek_type(func.data_type) != type_returns){
 		current_argument_type = get_argument_type(&(func.data_type));
-		current_argument_value = compile_expression(c, 1, 1);
+		current_argument_value = compile_expression(c, 1, 1, output_file);
 		if(**c != ',' && peek_type(func.data_type) != type_returns){
 			snprintf(error_message, sizeof(error_message), "Expected ','");
 			do_error(1);
@@ -621,35 +621,35 @@ value compile_function_call(char **c, value func){
 			do_error(1);
 		}
 		++*c;
-		current_argument_value = cast(current_argument_value, current_argument_type, 1);
+		current_argument_value = cast(current_argument_value, current_argument_type, 1, output_file);
 	}
 
 	pop_type(&(func.data_type));
 	if(func.data.type == data_register){
-		printf("lw $t0, %d($sp)\n", -(int) func_stack_pos);
-		printf("addi $sp, $sp, %d\n", -(int) stack_size_before);
-		printf("jr $t0\n\n");
+		fprintf(output_file, "lw $t0, %d($sp)\n", -(int) func_stack_pos);
+		fprintf(output_file, "addi $sp, $sp, %d\n", -(int) stack_size_before);
+		fprintf(output_file, "jr $t0\n\n");
 	} else if(func.data.type == data_stack){
-		printf("lw $t0, %d($sp)\n", -(int) func.data.stack_pos);
-		printf("addi $sp, $sp, %d\n", -(int) stack_size_before);
-		printf("jr $t0\n\n");
+		fprintf(output_file, "lw $t0, %d($sp)\n", -(int) func.data.stack_pos);
+		fprintf(output_file, "addi $sp, $sp, %d\n", -(int) stack_size_before);
+		fprintf(output_file, "jr $t0\n\n");
 	}
-	printf("__L%d:\n", label_num);
-	printf("addi $sp, $sp, %d\n", (int) stack_size_before);
-	printf("lw $t0, %d($sp)\n", -(int) return_data.stack_pos);
+	fprintf(output_file, "__L%d:\n", label_num);
+	fprintf(output_file, "addi $sp, $sp, %d\n", (int) stack_size_before);
+	fprintf(output_file, "lw $t0, %d($sp)\n", -(int) return_data.stack_pos);
 	deallocate(return_data);
 	deallocate(return_address_data);
-	pull_registers(reg_state);
+	pull_registers(reg_state, output_file);
 	if(func.data.type == data_register){
-		printf("move $s%d, $t0\n", func.data.reg);
+		fprintf(output_file, "move $s%d, $t0\n", func.data.reg);
 	} else if(func.data.type == data_stack){
-		printf("sw $t0, %d($sp)\n", -(int) func.data.stack_pos);
+		fprintf(output_file, "sw $t0, %d($sp)\n", -(int) func.data.stack_pos);
 	}
 
 	return func;
 }
 
-value compile_list_index(char **c, value address, unsigned char dereference){
+value compile_list_index(char **c, value address, unsigned char dereference, FILE *output_file){
 	value index;
 	type address_type;
 
@@ -659,77 +659,77 @@ value compile_list_index(char **c, value address, unsigned char dereference){
 		do_error(1);
 	}
 	++*c;
-	index = compile_expression(c, 1, 0);
+	index = compile_expression(c, 1, 0, output_file);
 	if(**c != ']'){
 		snprintf(error_message, sizeof(error_message), "Expected closing ']'");
 		do_error(1);
 	}
 	++*c;
-	index = cast(index, INT_TYPE, 1);
+	index = cast(index, INT_TYPE, 1, output_file);
 	if(index.data.type == data_register){
 		if(type_size(address_type) == 4){
-			printf("sll $s%d, $s%d, 2\n", index.data.reg, index.data.reg);
+			fprintf(output_file, "sll $s%d, $s%d, 2\n", index.data.reg, index.data.reg);
 		} else if(type_size(address_type) != 1){
-			printf("li $t0, %d\n", (int) type_size(address_type));
-			printf("mult $s%d, $t0\n", index.data.reg);
-			printf("mflo $s%d\n", index.data.reg);
+			fprintf(output_file, "li $t0, %d\n", (int) type_size(address_type));
+			fprintf(output_file, "mult $s%d, $t0\n", index.data.reg);
+			fprintf(output_file, "mflo $s%d\n", index.data.reg);
 		}
 		if(address.data.type == data_register){
-			printf("add $s%d, $s%d, $s%d\n", address.data.reg, address.data.reg, index.data.reg);
+			fprintf(output_file, "add $s%d, $s%d, $s%d\n", address.data.reg, address.data.reg, index.data.reg);
 			if(dereference && peek_type(address_type) != type_list){
 				if(type_size(address_type) == 4){
-					printf("lw $s%d, 0($s%d)\n", address.data.reg, address.data.reg);
+					fprintf(output_file, "lw $s%d, 0($s%d)\n", address.data.reg, address.data.reg);
 				} else if(type_size(address_type) == 1){
-					printf("lb $s%d, 0($s%d)\n", address.data.reg, address.data.reg);
+					fprintf(output_file, "lb $s%d, 0($s%d)\n", address.data.reg, address.data.reg);
 				} else {
 					snprintf(error_message, sizeof(error_message), "[INTERNAL] Unusable type size");
 					do_error(1);
 				}
 			}
 		} else if(address.data.type == data_stack){
-			printf("lw $t0, %d($sp)\n", -(int) address.data.stack_pos);
-			printf("add $t0, $t0, $s%d\n", index.data.reg);
+			fprintf(output_file, "lw $t0, %d($sp)\n", -(int) address.data.stack_pos);
+			fprintf(output_file, "add $t0, $t0, $s%d\n", index.data.reg);
 			if(dereference && peek_type(address_type) != type_list){
 				if(type_size(address_type) == 4){
-					printf("lw $t0, 0($t0)\n");
+					fprintf(output_file, "lw $t0, 0($t0)\n");
 				} else if(type_size(address_type) == 1){
-					printf("lb $t0, 0($t0)\n");
+					fprintf(output_file, "lb $t0, 0($t0)\n");
 				} else {
 					snprintf(error_message, sizeof(error_message), "[INTERNAL] Unusable type size");
 					do_error(1);
 				}
 			}
-			printf("sw $t0, %d($sp)\n", -(int) address.data.stack_pos);
+			fprintf(output_file, "sw $t0, %d($sp)\n", -(int) address.data.stack_pos);
 		}
 	} else if(index.data.type == data_stack){
-		printf("lw $t1, %d($sp)\n", -(int) index.data.stack_pos);
+		fprintf(output_file, "lw $t1, %d($sp)\n", -(int) index.data.stack_pos);
 		if(type_size(address_type) == 4){
-			printf("sll $t1, $t1, 2\n");
+			fprintf(output_file, "sll $t1, $t1, 2\n");
 		} else if(type_size(address_type) != 1){
-			printf("li $t0, %d\n", (int) type_size(address_type));
-			printf("mult $t1, $t0\n");
-			printf("mflo $t1\n");
+			fprintf(output_file, "li $t0, %d\n", (int) type_size(address_type));
+			fprintf(output_file, "mult $t1, $t0\n");
+			fprintf(output_file, "mflo $t1\n");
 		}
 		if(address.data.type == data_register){
-			printf("add $s%d, $s%d, $t1\n", address.data.reg, address.data.reg);
+			fprintf(output_file, "add $s%d, $s%d, $t1\n", address.data.reg, address.data.reg);
 			if(dereference && peek_type(address_type) != type_list){
 				if(type_size(address_type) == 4){
-					printf("lw $s%d, 0($s%d)\n", address.data.reg, address.data.reg);
+					fprintf(output_file, "lw $s%d, 0($s%d)\n", address.data.reg, address.data.reg);
 				} else if(type_size(address_type) == 1){
-					printf("lb $s%d, 0($s%d)\n", address.data.reg, address.data.reg);
+					fprintf(output_file, "lb $s%d, 0($s%d)\n", address.data.reg, address.data.reg);
 				}
 			}
 		} else if(address.data.type == data_stack){
-			printf("lw $t0, %d($sp)\n", -(int) address.data.stack_pos);
-			printf("add $t0, $t0, $t1\n");
+			fprintf(output_file, "lw $t0, %d($sp)\n", -(int) address.data.stack_pos);
+			fprintf(output_file, "add $t0, $t0, $t1\n");
 			if(dereference && peek_type(address_type) != type_list){
 				if(type_size(address_type) == 4){
-					printf("lw $t0, 0($t0)\n");
+					fprintf(output_file, "lw $t0, 0($t0)\n");
 				} else if(type_size(address_type) == 1){
-					printf("lb $t0, 0($t0)\n");
+					fprintf(output_file, "lb $t0, 0($t0)\n");
 				}
 			}
-			printf("sw $t0, %d($sp)\n", -(int) address.data.stack_pos);
+			fprintf(output_file, "sw $t0, %d($sp)\n", -(int) address.data.stack_pos);
 		}
 	}
 	deallocate(index.data);
@@ -797,11 +797,6 @@ void skip_string(char **c){
 
 void skip_value(char **c){
 	skip_whitespace(c);
-	if(**c == '\"'){
-		++*c;
-		skip_string(c);
-		return;
-	}
 	while(**c == '*' || **c == '&' || **c == '!' || **c == '~' || **c == '-' || is_whitespace(**c)){
 		++*c;
 	}
@@ -816,6 +811,9 @@ void skip_value(char **c){
 		while(alphanumeric(**c)){
 			++*c;
 		}
+	} else if(**c == '\"'){
+		++*c;
+		skip_string(c);
 	} else {
 		return;
 	}
@@ -832,7 +830,7 @@ void skip_value(char **c){
 	}
 }
 
-value compile_string(char **c, unsigned char dereference, unsigned char force_stack){
+value compile_string(char **c, unsigned char dereference, unsigned char force_stack, FILE *output_file){
 	value output;
 
 	if(!dereference){
@@ -844,10 +842,10 @@ value compile_string(char **c, unsigned char dereference, unsigned char force_st
 
 	output.data = allocate(force_stack);
 	if(output.data.type == data_register){
-		printf("la $s%d, __str%d\n", output.data.reg, current_string);
+		fprintf(output_file, "la $s%d, __str%d\n", output.data.reg, current_string);
 	} else if(output.data.type == data_stack){
-		printf("la $t0, __str%d\n", current_string);
-		printf("sw $t0, %d($sp)\n", -(int) output.data.stack_pos);
+		fprintf(output_file, "la $t0, __str%d\n", current_string);
+		fprintf(output_file, "sw $t0, %d($sp)\n", -(int) output.data.stack_pos);
 	}
 	current_string++;
 	output.data_type = CHAR_TYPE;
@@ -857,76 +855,72 @@ value compile_string(char **c, unsigned char dereference, unsigned char force_st
 	return output;
 }
 
-value compile_logical_not(value v){
+value compile_logical_not(value v, FILE *output_file){
 	if(v.data.type == data_register){
-		printf("seq $s%d, $s%d, $zero\n", v.data.reg, v.data.reg);
+		fprintf(output_file, "seq $s%d, $s%d, $zero\n", v.data.reg, v.data.reg);
 	} else if(v.data.type == data_stack){
-		printf("lw $t0, %d($sp)\n", -(int) v.data.stack_pos);
-		printf("seq $t0, $t0, $zero\n");
-		printf("sw $t0, %d($sp)\n", -(int) v.data.stack_pos);
+		fprintf(output_file, "lw $t0, %d($sp)\n", -(int) v.data.stack_pos);
+		fprintf(output_file, "seq $t0, $t0, $zero\n");
+		fprintf(output_file, "sw $t0, %d($sp)\n", -(int) v.data.stack_pos);
 	}
 
 	v.data_type = INT_TYPE;
 	return v;
 }
 
-value compile_not(value v){
+value compile_not(value v, FILE *output_file){
 	if(!types_equal(v.data_type, INT_TYPE) && !types_equal(v.data_type, CHAR_TYPE)){
 		snprintf(error_message, sizeof(error_message), "Can't perform bitwise not of non-numerical type");
 		do_error(1);
 	}
 	if(v.data.type == data_register){
-		printf("seq $s%d, $s%d, $s%d\n", v.data.reg, v.data.reg, v.data.reg);
+		fprintf(output_file, "seq $s%d, $s%d, $s%d\n", v.data.reg, v.data.reg, v.data.reg);
 	} else if(v.data.type == data_stack){
-		printf("lw $t0, %d($sp)\n", -(int) v.data.stack_pos);
-		printf("nor $t0, $t0, $t0\n");
-		printf("sw $t0, %d($sp)\n", -(int) v.data.stack_pos);
+		fprintf(output_file, "lw $t0, %d($sp)\n", -(int) v.data.stack_pos);
+		fprintf(output_file, "nor $t0, $t0, $t0\n");
+		fprintf(output_file, "sw $t0, %d($sp)\n", -(int) v.data.stack_pos);
 	}
 
 	v.data_type = INT_TYPE;
 	return v;
 }
 
-value compile_negate(value v){
+value compile_negate(value v, FILE *output_file){
 	if(!types_equal(v.data_type, INT_TYPE) && !types_equal(v.data_type, CHAR_TYPE)){
 		snprintf(error_message, sizeof(error_message), "Can't negate non-numerical type");
 		do_error(1);
 	}
 	if(v.data.type == data_register){
-		printf("sub $s%d, $zero, $s%d\n", v.data.reg, v.data.reg);
+		fprintf(output_file, "sub $s%d, $zero, $s%d\n", v.data.reg, v.data.reg);
 	} else if(v.data.type == data_stack){
-		printf("lw $t0, %d($sp)\n", -(int) v.data.stack_pos);
-		printf("sub $t0, $zero, $t0\n");
-		printf("sw $t0, %d($sp)\n", -(int) v.data.stack_pos);
+		fprintf(output_file, "lw $t0, %d($sp)\n", -(int) v.data.stack_pos);
+		fprintf(output_file, "sub $t0, $zero, $t0\n");
+		fprintf(output_file, "sw $t0, %d($sp)\n", -(int) v.data.stack_pos);
 	}
 
 	v.data_type = INT_TYPE;
 	return v;
 }
 
-value compile_value(char **c, unsigned char dereference, unsigned char force_stack){
+value compile_value(char **c, unsigned char dereference, unsigned char force_stack, FILE *output_file){
 	value output;
 	char *temp_c;
 	type cast_type;
 
 	skip_whitespace(c);
 
-	if(**c == '\"'){
-		return compile_string(c, dereference, force_stack);
-	}
-
 	if(**c == '*'){
 		++*c;
-		output = compile_value(c, 1, force_stack);
+		output = compile_value(c, 1, force_stack, output_file);
 		if(dereference){
-			output = compile_dereference(output);
+			output = compile_dereference(output, output_file);
 		}
 		output.is_reference = !dereference;
 		return output;
 	} else if(**c == '&'){
 		++*c;
 		if(dereference){
-			output = compile_value(c, 0, force_stack);
+			output = compile_value(c, 0, force_stack, output_file);
 		} else {
 			snprintf(error_message, sizeof(error_message), "Can't get address of r-value");
 			do_error(1);
@@ -936,7 +930,7 @@ value compile_value(char **c, unsigned char dereference, unsigned char force_sta
 	} else if(**c == '!'){
 		++*c;
 		if(dereference){
-			output = compile_logical_not(compile_value(c, 1, force_stack));
+			output = compile_logical_not(compile_value(c, 1, force_stack, output_file), output_file);
 		} else {
 			snprintf(error_message, sizeof(error_message), "Can't get address of r-value");
 			do_error(1);
@@ -946,7 +940,7 @@ value compile_value(char **c, unsigned char dereference, unsigned char force_sta
 	} else if(**c == '~'){
 		++*c;
 		if(dereference){
-			output = compile_not(compile_value(c, 1, force_stack));
+			output = compile_not(compile_value(c, 1, force_stack, output_file), output_file);
 		} else {
 			snprintf(error_message, sizeof(error_message), "Can't get address of r-value");
 			do_error(1);
@@ -956,7 +950,7 @@ value compile_value(char **c, unsigned char dereference, unsigned char force_sta
 	} else if(**c == '-' && !digit((*c)[1])){
 		++*c;
 		if(dereference){
-			output = compile_negate(compile_value(c, 1, force_stack));
+			output = compile_negate(compile_value(c, 1, force_stack, output_file), output_file);
 		} else {
 			snprintf(error_message, sizeof(error_message), "Can't get address of r-value");
 			do_error(1);
@@ -984,10 +978,10 @@ value compile_value(char **c, unsigned char dereference, unsigned char force_sta
 				do_error(1);
 			}
 			++*c;
-			return cast(compile_value(c, 1, force_stack), cast_type, 0);
+			return cast(compile_value(c, 1, force_stack, output_file), cast_type, 0, output_file);
 		//Associative parentheses
 		} else {
-			output = compile_expression(c, dereference, force_stack);
+			output = compile_expression(c, dereference, force_stack, output_file);
 			if(**c == ')'){
 				++*c;
 			} else {
@@ -996,9 +990,11 @@ value compile_value(char **c, unsigned char dereference, unsigned char force_sta
 			}
 		}
 	} else if(**c == '-' || digit(**c)){
-		output = compile_integer(c, dereference, force_stack);
+		output = compile_integer(c, dereference, force_stack, output_file);
 	} else if(alpha(**c)){
-		output = compile_variable(c, dereference, force_stack);
+		output = compile_variable(c, dereference, force_stack, output_file);
+	} else if(**c == '\"'){
+		output = compile_string(c, dereference, force_stack, output_file);
 	} else {
 		snprintf(error_message, sizeof(error_message), "Unrecognized expression value");
 		do_error(1);
@@ -1008,16 +1004,16 @@ value compile_value(char **c, unsigned char dereference, unsigned char force_sta
 	while(**c == '[' || **c == '('){
 		if(**c == '['){
 			if(!dereference){
-				output = compile_dereference(output);
+				output = compile_dereference(output, output_file);
 			}
-			output = compile_list_index(c, output, dereference);
+			output = compile_list_index(c, output, dereference, output_file);
 		} else if(**c == '('){
 			++*c;
 			if(!dereference){
 				snprintf(error_message, sizeof(error_message), "Cannot get address of return value of function");
 				do_error(1);
 			}
-			output = compile_function_call(c, output);
+			output = compile_function_call(c, output, output_file);
 		}
 
 		skip_whitespace(c);
@@ -1120,7 +1116,7 @@ operation get_operation(char **c){
 	return output;
 }
 
-value compile_operation(value first_value, value next_value, operation op, unsigned char dereference){
+value compile_operation(value first_value, value next_value, operation op, unsigned char dereference, FILE *output_file){
 	char reg0_str_buffer[5];
 	char reg1_str_buffer[5];
 	char *reg0_str;
@@ -1143,9 +1139,9 @@ value compile_operation(value first_value, value next_value, operation op, unsig
 	} else if(first_value.data.type == data_stack){
 		reg0_str = "$t0";
 		if(type_size(first_value.data_type) == 4){
-			printf("lw $t0, %d($sp)\n", -(int) first_value.data.stack_pos);
+			fprintf(output_file, "lw $t0, %d($sp)\n", -(int) first_value.data.stack_pos);
 		} else if(type_size(first_value.data_type) == 1){
-			printf("lb $t0, %d($sp)\n", -(int) first_value.data.stack_pos);
+			fprintf(output_file, "lb $t0, %d($sp)\n", -(int) first_value.data.stack_pos);
 		} else {
 			snprintf(error_message, sizeof(error_message), "[INTERNAL] Unusable type size %d", type_size(first_value.data_type));
 			do_error(1);
@@ -1157,21 +1153,21 @@ value compile_operation(value first_value, value next_value, operation op, unsig
 	} else if(next_value.data.type == data_stack){
 		reg1_str = "$t1";
 		if(type_size(next_value.data_type) == 4){
-			printf("lw $t1, %d($sp)\n", -(int) next_value.data.stack_pos);
+			fprintf(output_file, "lw $t1, %d($sp)\n", -(int) next_value.data.stack_pos);
 		} else if(type_size(next_value.data_type) == 1){
-			printf("lb $t1, %d($sp)\n", -(int) next_value.data.stack_pos);
+			fprintf(output_file, "lb $t1, %d($sp)\n", -(int) next_value.data.stack_pos);
 		} else {
 			snprintf(error_message, sizeof(error_message), "[INTERNAL] Unusable type size %d", type_size(next_value.data_type));
 			do_error(1);
 		}
 	}
-	output_type = operation_functions[op](reg0_str, reg1_str, first_value, next_value);
+	output_type = operation_functions[op](reg0_str, reg1_str, first_value, next_value, output_file);
 	deallocate(next_value.data);
 	if(first_value.data.type == data_stack){
 		if(type_size(output_type) == 4){
-			printf("sw $t0, %d($sp)\n", -(int) first_value.data.stack_pos);
+			fprintf(output_file, "sw $t0, %d($sp)\n", -(int) first_value.data.stack_pos);
 		} else if(type_size(output_type) == 1){
-			printf("sw $t0, %d($sp)\n", -(int) first_value.data.stack_pos);
+			fprintf(output_file, "sw $t0, %d($sp)\n", -(int) first_value.data.stack_pos);
 		} else {
 			snprintf(error_message, sizeof(error_message), "[INTERNAL] Unusable type size %d", type_size(output_type));
 			do_error(1);
@@ -1185,7 +1181,7 @@ value compile_operation(value first_value, value next_value, operation op, unsig
 //Note: dereference = 0 and an operation is compiled will cause an error!
 //This is intended behavior. In essence, at this point dereference just tells whether
 //compiling an operation should cause an error.
-static value compile_expression_recursive(value first_value, char **c, unsigned char dereference){
+static value compile_expression_recursive(value first_value, char **c, unsigned char dereference, FILE *output_file){
 	operation current_operation;
 	operation next_operation;
 	value next_value;
@@ -1206,29 +1202,29 @@ static value compile_expression_recursive(value first_value, char **c, unsigned 
 		current_line = current_line_temp;
 		next_operation = peek_operation(temp_c);
 		if(next_operation == operation_assign){
-			next_value = compile_value(c, 0, 0);
+			next_value = compile_value(c, 0, 0, output_file);
 		} else {
-			next_value = compile_value(c, 1, 0);
+			next_value = compile_value(c, 1, 0, output_file);
 		}
 		skip_whitespace(c);
 		while(order_of_operations[next_operation] > order_of_operations[current_operation]){
-			next_value = compile_expression_recursive(next_value, c, 1);
+			next_value = compile_expression_recursive(next_value, c, 1, output_file);
 			skip_whitespace(c);
 			next_operation = peek_operation(*c);
 		}
 		if(current_operation == operation_assign){
 			cast_to = first_value.data_type;
 			pop_type(&cast_to);
-			next_value = cast(next_value, cast_to, 1);
+			next_value = cast(next_value, cast_to, 1, output_file);
 		}
-		first_value = compile_operation(first_value, next_value, current_operation, dereference);
+		first_value = compile_operation(first_value, next_value, current_operation, dereference, output_file);
 		skip_whitespace(c);
 	}
 
 	return first_value;
 }
 
-value compile_expression(char **c, unsigned char dereference, unsigned char force_stack){
+value compile_expression(char **c, unsigned char dereference, unsigned char force_stack, FILE *output_file){
 	value first_value;
 	char *temp_c;
 	int current_line_temp;
@@ -1239,10 +1235,10 @@ value compile_expression(char **c, unsigned char dereference, unsigned char forc
 	current_line = current_line_temp;
 
 	if(peek_operation(temp_c) == operation_assign){
-		first_value = compile_value(c, 0, force_stack);
+		first_value = compile_value(c, 0, force_stack, output_file);
 	} else {
-		first_value = compile_value(c, dereference, force_stack);
+		first_value = compile_value(c, dereference, force_stack, output_file);
 	}
-	return compile_expression_recursive(first_value, c, dereference);
+	return compile_expression_recursive(first_value, c, dereference, output_file);
 }
 

@@ -348,7 +348,8 @@ void parse_type_arguments(type *t, char **c, char *argument_names, unsigned int 
 		}
 		parse_type_arguments(t, c, argument_names, identifier_length, num_arguments);
 	} else if(**c != ')'){
-		printf("Expected ',' or ')'\n");
+		snprintf(error_message, sizeof(error_message), "Expected ',' or ')'\n");
+		do_error(1);
 	}
 
 	append_type(t, temp_type);
