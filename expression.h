@@ -21,7 +21,9 @@ enum operation{
 	operation_not_equals,
 	operation_and,
 	operation_or,
-	operation_modulo
+	operation_modulo,
+	operation_logical_and,
+	operation_logical_or
 };
 
 typedef struct variable variable;

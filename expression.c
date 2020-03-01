@@ -9,7 +9,7 @@ dictionary local_variables;
 dictionary global_variables;
 unsigned int num_labels = 0;
 unsigned int current_string = 0;
-unsigned int order_of_operations[] = {0, 6, 6, 7, 7, 1, 5, 5, 4, 4, 3, 2, 7};
+static unsigned int order_of_operations[] = {0, 8, 8, 9, 9, 1, 7, 7, 6, 6, 5, 4, 9, 3, 2};
 
 type operation_none_func(char *reg_a, char *reg_b, value value_a, value value_b, FILE *output_file){
 	snprintf(error_message, sizeof(error_message), "Unrecognized operation");
@@ -261,7 +261,7 @@ type operation_or_func(char *reg_a, char *reg_b, value value_a, value value_b, F
 	return INT_TYPE;
 }
 
-type (*operation_functions[])(char *, char *, value, value, FILE *) = {operation_none_func, operation_add_func, operation_subtract_func, operation_multiply_func, operation_divide_func, operation_assign_func, operation_less_than_func, operation_greater_than_func, operation_equals_func, operation_not_equals_func, operation_and_func, operation_or_func, operation_modulo_func};
+type (*operation_functions[])(char *, char *, value, value, FILE *) = {operation_none_func, operation_add_func, operation_subtract_func, operation_multiply_func, operation_divide_func, operation_assign_func, operation_less_than_func, operation_greater_than_func, operation_equals_func, operation_not_equals_func, operation_and_func, operation_or_func, operation_modulo_func, operation_none_func, operation_none_func};
 
 int type_size(type t){
 	switch(pop_type(&t)){
@@ -1052,9 +1052,17 @@ operation peek_operation(char *c){
 		case '<':
 			return operation_less_than;
 		case '&':
-			return operation_and;
+			if(c[1] == '&'){
+				return operation_logical_and;
+			} else {
+				return operation_and;
+			}
 		case '|':
-			return operation_or;
+			if(c[1] == '|'){
+				return operation_logical_or;
+			} else {
+				return operation_or;
+			}
 	}
 
 	return operation_none;
@@ -1103,10 +1111,20 @@ operation get_operation(char **c){
 			output = operation_less_than;
 			break;
 		case '&':
-			output = operation_and;
+			if((*c)[1] == '&'){
+				output = operation_logical_and;
+				++*c;
+			} else {
+				output = operation_and;
+			}
 			break;
 		case '|':
-			output = operation_or;
+			if((*c)[1] == '|'){
+				output = operation_logical_or;
+				++*c;
+			} else {
+				output = operation_or;
+			}
 			break;
 		default:
 			output = operation_none;
@@ -1184,42 +1202,92 @@ value compile_operation(value first_value, value next_value, operation op, unsig
 static value compile_expression_recursive(value first_value, char **c, unsigned char dereference, FILE *output_file){
 	operation current_operation;
 	operation next_operation;
+	unsigned int label_num;
 	value next_value;
 	char *temp_c;
 	type cast_to;
 	int current_line_temp;
 
 	skip_whitespace(c);
-	while(**c && **c != ';' && **c != ',' && **c != ')' && **c != ']'){
-		current_operation = get_operation(c);
-		if(current_operation == operation_none){
-			snprintf(error_message, sizeof(error_message), "Unrecognized operation");
+	current_operation = get_operation(c);
+	if(current_operation == operation_none){
+		snprintf(error_message, sizeof(error_message), "Unrecognized operation");
+		do_error(1);
+	} else if(current_operation == operation_logical_or){
+		label_num = num_labels;
+		num_labels++;
+		first_value = cast(first_value, INT_TYPE, 1, output_file);
+		if(first_value.data.type == data_register){
+			fprintf(output_file, "sne $s%d, $s%d, $zero\n", first_value.data.reg, first_value.data.reg);
+			fprintf(output_file, "bne $s%d, $zero, __L%d\n", first_value.data.reg, label_num);
+		} else if(first_value.data.type == data_stack){
+			fprintf(output_file, "lw $t0, %d($sp)\n", -(int) first_value.data.stack_pos);
+			fprintf(output_file, "sne $t0, $t0, $zero\n");
+			fprintf(output_file, "sw $t0, %d($sp)\n", -(int) first_value.data.stack_pos);
+			fprintf(output_file, "bne $t0, $zero, __L%d\n", label_num);
+		}
+	} else if(current_operation == operation_logical_and){
+		label_num = num_labels;
+		num_labels++;
+		first_value = cast(first_value, INT_TYPE, 1, output_file);
+		if(first_value.data.type == data_register){
+			fprintf(output_file, "beq $s%d, $zero, __L%d\n", first_value.data.reg, label_num);
+		} else if(first_value.data.type == data_stack){
+			fprintf(output_file, "lw $t0, %d($sp)\n", -(int) first_value.data.stack_pos);
+			fprintf(output_file, "beq $t0, $zero, __L%d\n", label_num);
+		}
+	}
+
+	temp_c = *c;
+	current_line_temp = current_line;
+	skip_value(&temp_c);
+	current_line = current_line_temp;
+	next_operation = peek_operation(temp_c);
+	if(next_operation == operation_assign && order_of_operations[operation_assign] > order_of_operations[current_operation]){
+		next_value = compile_value(c, 0, 0, output_file);
+	} else {
+		next_value = compile_value(c, 1, 0, output_file);
+	}
+	skip_whitespace(c);
+	while(order_of_operations[next_operation] > order_of_operations[current_operation]){
+		next_value = compile_expression_recursive(next_value, c, 1, output_file);
+		skip_whitespace(c);
+		next_operation = peek_operation(*c);
+	}
+	if(current_operation == operation_assign){
+		cast_to = first_value.data_type;
+		pop_type(&cast_to);
+		next_value = cast(next_value, cast_to, 1, output_file);
+		first_value = compile_operation(first_value, next_value, current_operation, dereference, output_file);
+	} else if(current_operation == operation_logical_or || current_operation == operation_logical_and){
+		if(!dereference){
+			snprintf(error_message, sizeof(error_message), "Cannot take address of r-value");
 			do_error(1);
 		}
-		temp_c = *c;
-		current_line_temp = current_line;
-		skip_value(&temp_c);
-		current_line = current_line_temp;
-		next_operation = peek_operation(temp_c);
-		if(next_operation == operation_assign){
-			next_value = compile_value(c, 0, 0, output_file);
-		} else {
-			next_value = compile_value(c, 1, 0, output_file);
+		next_value = cast(next_value, INT_TYPE, 1, output_file);
+		if(next_value.data.type == data_register){
+			fprintf(output_file, "sne $s%d, $s%d, $zero\n", next_value.data.reg, next_value.data.reg);
+			if(first_value.data.type == data_register){
+				fprintf(output_file, "move $s%d, $s%d\n", first_value.data.reg, next_value.data.reg);
+			} else if(first_value.data.type == data_stack){
+				fprintf(output_file, "sw $s%d, %d($sp)\n", next_value.data.reg, -(int) first_value.data.stack_pos);
+			}
+		} else if(next_value.data.type == data_stack){
+			if(first_value.data.type == data_register){
+				fprintf(output_file, "lw $s%d, %d($sp)\n", first_value.data.reg, -(int) next_value.data.stack_pos);
+				fprintf(output_file, "sne $s%d, $s%d, $zero\n", first_value.data.reg, first_value.data.reg);
+			} else if(first_value.data.type == data_stack){
+				fprintf(output_file, "lw $t0, %d($sp)\n", -(int) next_value.data.stack_pos);
+				fprintf(output_file, "sne $t0, $t0, $zero\n");
+				fprintf(output_file, "sw $t0, %d($sp)\n", -(int) first_value.data.stack_pos);
+			}
 		}
-		skip_whitespace(c);
-		while(order_of_operations[next_operation] > order_of_operations[current_operation]){
-			next_value = compile_expression_recursive(next_value, c, 1, output_file);
-			skip_whitespace(c);
-			next_operation = peek_operation(*c);
-		}
-		if(current_operation == operation_assign){
-			cast_to = first_value.data_type;
-			pop_type(&cast_to);
-			next_value = cast(next_value, cast_to, 1, output_file);
-		}
+		deallocate(next_value.data);
+		fprintf(output_file, "\n__L%d:\n", label_num);
+	} else {
 		first_value = compile_operation(first_value, next_value, current_operation, dereference, output_file);
-		skip_whitespace(c);
 	}
+	skip_whitespace(c);
 
 	return first_value;
 }
@@ -1239,6 +1307,10 @@ value compile_expression(char **c, unsigned char dereference, unsigned char forc
 	} else {
 		first_value = compile_value(c, dereference, force_stack, output_file);
 	}
-	return compile_expression_recursive(first_value, c, dereference, output_file);
+	while(**c && **c != ';' && **c != ',' && **c != ')' && **c != ']'){
+		first_value = compile_expression_recursive(first_value, c, dereference, output_file);
+	}
+
+	return first_value;
 }
 
