@@ -24,8 +24,10 @@ We will build and execute a program which prints all of the primes less than 500
 - `&` Bitwise AND
 - `|` Bitwise OR
 - `%` Modulo
+- `&&` Logical AND
+- `||` Logical OR
 
-Note that `||` and `&&` are missing, but often `|` and `&` can be used to substitute them. *Be careful though*, because these operators don't short circuit. I am looking to add `||` and `&&` soon.
+Note that `||` and `&&` may still be buggy.
 ### List of Unary Operations
 - `*` Dereference
 - `&` Reference
