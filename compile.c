@@ -323,7 +323,8 @@ void compile_statement(char **c, FILE *output_file){
 }
 
 void place_string_constant(char **c, FILE *output_file){
-	unsigned char ignore_next;
+	unsigned char ignore_next = 0;
+
 	while(**c && (**c != '"' || ignore_next)){
 		fprintf(output_file, "%c", **c);
 		if(**c == '\\'){
@@ -423,7 +424,7 @@ int main(int argc, char **argv){
 	while(*current_source_file){
 		fp = fopen(*current_source_file, "r");
 		if(!fp){
-			fprintf(stderr, "Could not open file '%s' for reading\n", *source_files);
+			fprintf(stderr, "Could not open file '%s' for reading\n", *current_source_file);
 			free_global_variables();
 			exit(1);
 		}
@@ -431,7 +432,12 @@ int main(int argc, char **argv){
 		file_size = ftell(fp);
 		rewind(fp);
 		program = calloc(file_size + 1, sizeof(char));
-		fread(program, sizeof(char), file_size, fp);
+		if(fread(program, sizeof(char), file_size, fp) < file_size){
+			fclose(fp);
+			fprintf(stderr, "Failed to read file '%s'\n", *current_source_file);
+			free_global_variables();
+			exit(1);
+		}
 		fclose(fp);
 		initialize_register_list();
 		initialize_variables();

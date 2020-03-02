@@ -579,7 +579,7 @@ value compile_function_call(char **c, value func, FILE *output_file){
 	type current_argument_type;
 	value current_argument_value;
 	unsigned int label_num;
-	unsigned int func_stack_pos;
+	unsigned int func_stack_pos = 0;
 	unsigned int stack_size_before;
 
 	if(peek_type(func.data_type) == type_pointer){
@@ -828,6 +828,7 @@ void skip_value(char **c){
 			++*c;
 			match_brackets(c);
 		}
+		skip_whitespace(c);
 		skip_whitespace(c);
 	}
 }
@@ -1137,10 +1138,10 @@ operation get_operation(char **c){
 }
 
 value compile_operation(value first_value, value next_value, operation op, unsigned char dereference, FILE *output_file){
-	char reg0_str_buffer[5];
-	char reg1_str_buffer[5];
-	char *reg0_str;
-	char *reg1_str;
+	char reg0_str_buffer[5] = {0, 0, 0, 0, 0};
+	char reg1_str_buffer[5] = {0, 0, 0, 0, 0};
+	char *reg0_str = "";
+	char *reg1_str = "";
 	type output_type;
 
 	if(!dereference){
@@ -1251,13 +1252,10 @@ static value compile_expression_recursive(value first_value, char **c, unsigned 
 		next_value = compile_value(c, 1, 0, output_file);
 	}
 	skip_whitespace(c);
-	printf("checking %d %d\n", current_operation, next_operation);
 	while(order_of_operations[next_operation] > order_of_operations[current_operation]){
-		printf("%d %d\n", current_operation, next_operation);
 		next_value = compile_expression_recursive(next_value, c, 1, output_file);
 		skip_whitespace(c);
 		next_operation = peek_operation(*c);
-		printf("checking %d %d\n", current_operation, next_operation);
 	}
 	if(current_operation == operation_assign){
 		cast_to = first_value.data_type;
