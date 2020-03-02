@@ -800,10 +800,12 @@ void skip_value(char **c){
 	while(**c == '*' || **c == '&' || **c == '!' || **c == '~' || **c == '-' || is_whitespace(**c)){
 		++*c;
 	}
-	if(**c == '('){
+	while(**c == '('){
 		++*c;
 		match_parentheses(c);
-	} else if(digit(**c)){
+		skip_whitespace(c);
+	}
+	if(digit(**c)){
 		while(digit(**c)){
 			++*c;
 		}
@@ -1249,10 +1251,13 @@ static value compile_expression_recursive(value first_value, char **c, unsigned 
 		next_value = compile_value(c, 1, 0, output_file);
 	}
 	skip_whitespace(c);
+	printf("checking %d %d\n", current_operation, next_operation);
 	while(order_of_operations[next_operation] > order_of_operations[current_operation]){
+		printf("%d %d\n", current_operation, next_operation);
 		next_value = compile_expression_recursive(next_value, c, 1, output_file);
 		skip_whitespace(c);
 		next_operation = peek_operation(*c);
+		printf("checking %d %d\n", current_operation, next_operation);
 	}
 	if(current_operation == operation_assign){
 		cast_to = first_value.data_type;
