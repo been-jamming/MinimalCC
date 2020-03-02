@@ -23,7 +23,9 @@ enum operation{
 	operation_or,
 	operation_modulo,
 	operation_logical_and,
-	operation_logical_or
+	operation_logical_or,
+	operation_shift_left,
+	operation_shift_right
 };
 
 typedef struct variable variable;

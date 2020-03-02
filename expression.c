@@ -9,7 +9,7 @@ dictionary local_variables;
 dictionary global_variables;
 unsigned int num_labels = 0;
 unsigned int current_string = 0;
-static unsigned int order_of_operations[] = {0, 8, 8, 9, 9, 1, 7, 7, 6, 6, 5, 4, 9, 3, 2};
+static unsigned int order_of_operations[] = {0, 9, 9, 10, 10, 1, 7, 7, 6, 6, 5, 4, 9, 3, 2, 8, 8};
 
 type operation_none_func(char *reg_a, char *reg_b, value value_a, value value_b, FILE *output_file){
 	snprintf(error_message, sizeof(error_message), "Unrecognized operation");
@@ -261,7 +261,25 @@ type operation_or_func(char *reg_a, char *reg_b, value value_a, value value_b, F
 	return INT_TYPE;
 }
 
-type (*operation_functions[])(char *, char *, value, value, FILE *) = {operation_none_func, operation_add_func, operation_subtract_func, operation_multiply_func, operation_divide_func, operation_assign_func, operation_less_than_func, operation_greater_than_func, operation_equals_func, operation_not_equals_func, operation_and_func, operation_or_func, operation_modulo_func, operation_none_func, operation_none_func};
+type operation_shift_left_func(char *reg_a, char *reg_b, value value_a, value value_b, FILE *output_file){
+	if((!types_equal(value_a.data_type, INT_TYPE) && !types_equal(value_a.data_type, CHAR_TYPE)) || (!types_equal(value_b.data_type, INT_TYPE) && !types_equal(value_b.data_type, CHAR_TYPE))){
+		snprintf(error_message, sizeof(error_message), "Cannot '<<' non-arithmetic types");
+		do_error(1);
+	}
+	fprintf(output_file, "sllv %s, %s, %s\n", reg_a, reg_a, reg_b);
+	return INT_TYPE;
+}
+
+type operation_shift_right_func(char *reg_a, char *reg_b, value value_a, value value_b, FILE *output_file){
+	if((!types_equal(value_a.data_type, INT_TYPE) && !types_equal(value_a.data_type, CHAR_TYPE)) || (!types_equal(value_b.data_type, INT_TYPE) && !types_equal(value_b.data_type, CHAR_TYPE))){
+		snprintf(error_message, sizeof(error_message), "Cannot '>>' non-arithmetic types");
+		do_error(1);
+	}
+	fprintf(output_file, "srav %s, %s, %s\n", reg_a, reg_a, reg_b);
+	return INT_TYPE;
+}
+
+type (*operation_functions[])(char *, char *, value, value, FILE *) = {operation_none_func, operation_add_func, operation_subtract_func, operation_multiply_func, operation_divide_func, operation_assign_func, operation_less_than_func, operation_greater_than_func, operation_equals_func, operation_not_equals_func, operation_and_func, operation_or_func, operation_modulo_func, operation_none_func, operation_none_func, operation_shift_left_func, operation_shift_right_func};
 
 int type_size(type t){
 	switch(pop_type(&t)){
@@ -1051,9 +1069,17 @@ operation peek_operation(char *c){
 				return operation_none;
 			}
 		case '>':
-			return operation_greater_than;
+			if(c[1] == '>'){
+				return operation_shift_right;
+			} else {
+				return operation_greater_than;
+			}
 		case '<':
-			return operation_less_than;
+			if(c[1] == '<'){
+				return operation_shift_left;
+			} else {
+				return operation_less_than;
+			}
 		case '&':
 			if(c[1] == '&'){
 				return operation_logical_and;
@@ -1108,10 +1134,20 @@ operation get_operation(char **c){
 			}
 			break;
 		case '>':
-			output = operation_greater_than;
+			if((*c)[1] == '>'){
+				output = operation_shift_right;
+				++*c;
+			} else {
+				output = operation_greater_than;
+			}
 			break;
 		case '<':
-			output = operation_less_than;
+			if((*c)[1] == '<'){
+				output = operation_shift_left;
+				++*c;
+			} else {
+				output = operation_less_than;
+			}
 			break;
 		case '&':
 			if((*c)[1] == '&'){
