@@ -26,6 +26,8 @@ We will build and execute a program which prints all of the primes less than 500
 - `%` Modulo
 - `&&` Logical AND
 - `||` Logical OR
+- `<<` Shift left
+- `>>` Shift right (arithmetic)
 
 Note that `||` and `&&` may still be buggy.
 ### List of Unary Operations
