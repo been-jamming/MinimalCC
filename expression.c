@@ -513,6 +513,8 @@ value compile_expression(char **c, unsigned char dereference, unsigned char forc
 
 value cast(value v, type t, unsigned char do_warn, FILE *output_file){
 	type t_copy;
+	type_entry entry1;
+	type_entry entry2;
 
 	if(types_equal(v.data_type, VOID_TYPE) && !types_equal(t, VOID_TYPE)){
 		snprintf(error_message, sizeof(error_message), "Can't cast void type to non-void type");
@@ -542,8 +544,13 @@ value cast(value v, type t, unsigned char do_warn, FILE *output_file){
 	}
 
 	t_copy = t;
-	if((pop_type(&t_copy) == type_pointer) != (pop_type(&(v.data_type)) == type_pointer) && do_warn){
+	entry1 = pop_type(&t_copy);
+	entry2 = pop_type(&(v.data_type));
+	if((entry1 == type_pointer) != (entry2 == type_pointer) && do_warn){
 		snprintf(warning_message, sizeof(warning_message), "Casting between pointer and non-pointer types");
+		do_warning();
+	} else if(entry1 == type_pointer && !types_equal(t_copy, v.data_type) && !types_equal(t_copy, VOID_TYPE) && !types_equal(v.data_type, VOID_TYPE) && do_warn){
+		snprintf(warning_message, sizeof(warning_message), "Casting between incompatible pointer types");
 		do_warning();
 	}
 
