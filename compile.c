@@ -241,7 +241,29 @@ void compile_statement(char **c, FILE *output_file){
 		} else {
 			compile_statement(c, output_file);
 		}
-		fprintf(output_file, "\n__L%d:\n", label_num0);
+		skip_whitespace(c);
+		if(!strncmp(*c, "else", 2) && !alphanumeric((*c)[4])){
+			*c += 4;
+			label_num1 = num_labels;
+			num_labels++;
+			fprintf(output_file, "j __L%d\n", label_num1);
+			fprintf(output_file, "\n__L%d:\n", label_num0);
+			skip_whitespace(c);
+			if(**c == '{'){
+				++*c;
+				compile_block(c, 0, output_file);
+				if(**c != '}'){
+					snprintf(error_message, sizeof(error_message), "Expected '}'");
+					do_error(1);
+				}
+				++*c;
+			} else {
+				compile_statement(c, output_file);
+			}
+			fprintf(output_file, "\n__L%d:\n", label_num1);
+		} else {
+			fprintf(output_file, "\n__L%d:\n", label_num0);
+		}
 	} else if(!strncmp(*c, "while", 5) && !alphanumeric((*c)[5])){
 		*c += 5;
 		skip_whitespace(c);
