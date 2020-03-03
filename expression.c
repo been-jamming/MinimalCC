@@ -803,14 +803,16 @@ void match_brackets(char **c){
 }
 
 void skip_string(char **c){
-	while(**c != '\"'){
+	while(**c && **c != '\"'){
 		if(**c == '\\'){
 			*c += 2;
 		} else {
 			++*c;
 		}
 	}
-	++*c;
+	if(**c){
+		++*c;
+	}
 }
 
 void skip_value(char **c){
@@ -834,6 +836,17 @@ void skip_value(char **c){
 	} else if(**c == '\"'){
 		++*c;
 		skip_string(c);
+	} else if(**c == '\''){
+		++*c;
+		if(**c == '\\'){
+			++*c;
+		}
+		while(**c && **c != '\''){
+			++*c;
+		}
+		if(**c){
+			++*c;
+		}
 	} else {
 		return;
 	}
@@ -871,6 +884,53 @@ value compile_string(char **c, unsigned char dereference, unsigned char force_st
 	current_string++;
 	output.data_type = CHAR_TYPE;
 	add_type_entry(&(output.data_type), type_pointer);
+	output.is_reference = 0;
+
+	return output;
+}
+
+value compile_character(char **c, unsigned char dereference, unsigned char force_stack, FILE *output_file){
+	value output;
+	int char_constant = 0;
+	char escape_sequences[] = {'a', 'b', 'e', 'f', 'n', 'r', 't', 'v', '\\', '\'', '\"', '\?'};
+	int escape_values[] = {0x07, 0x08, 0x1B, 0x0C, 0x0A, 0x0D, 0x09, 0x0B, 0x5C, 0x27, 0x22, 0x3F};
+	unsigned char i;
+
+	if(!dereference){
+		snprintf(error_message, sizeof(error_message), "Can't get address of r-value");
+		do_error(1);
+	}
+	++*c;
+
+	if(**c == '\\'){
+		++*c;
+		for(i = 0; i < sizeof(escape_sequences)/sizeof(char); i++){
+			if(**c == escape_sequences[i]){
+				char_constant = escape_values[i];
+			}
+		}
+		if(!char_constant){
+			snprintf(error_message, sizeof(error_message), "Unrecognized escape sequence\n");
+			do_error(1);
+		}
+	} else {
+		char_constant = **c;
+	}
+	++*c;
+	if(**c != '\''){
+		snprintf(error_message, sizeof(error_message), "Expected closing '\n");
+		do_error(1);
+	}
+	++*c;
+
+	output.data = allocate(force_stack);
+	if(output.data.type == data_register){
+		fprintf(output_file, "li $s%d, %d\n", output.data.reg, char_constant);
+	} else if(output.data.type == data_stack){
+		fprintf(output_file, "li $t0, %d\n", char_constant);
+		fprintf(output_file, "sw $t0, %d($sp)\n", -(int) output.data.stack_pos);
+	}
+	output.data_type = INT_TYPE;
 	output.is_reference = 0;
 
 	return output;
@@ -1016,6 +1076,8 @@ value compile_value(char **c, unsigned char dereference, unsigned char force_sta
 		output = compile_variable(c, dereference, force_stack, output_file);
 	} else if(**c == '\"'){
 		output = compile_string(c, dereference, force_stack, output_file);
+	} else if(**c == '\''){
+		output = compile_character(c, dereference, force_stack, output_file);
 	} else {
 		snprintf(error_message, sizeof(error_message), "Unrecognized expression value");
 		do_error(1);
