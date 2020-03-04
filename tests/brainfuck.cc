@@ -1,7 +1,9 @@
-//Brainfuck interpreter
-//By Ben Jones
-//Written for MCC
-//3/04/2020
+/*
+Brainfuck interpreter
+By Ben Jones
+Written for MCC
+3/04/2020
+*/
 
 void inputs(char *, int);
 void printc(char);
