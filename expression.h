@@ -6,8 +6,6 @@
 #define INT_SIZE 4
 #define POINTER_SIZE 4
 
-typedef enum operation operation;
-
 enum operation{
 	operation_none,
 	operation_add,
@@ -27,6 +25,8 @@ enum operation{
 	operation_shift_left,
 	operation_shift_right
 };
+
+typedef enum operation operation;
 
 typedef struct variable variable;
 

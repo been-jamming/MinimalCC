@@ -60,8 +60,8 @@ void *read_dictionary(dictionary dict, char *string, unsigned char offset){
 		}
 
 		offset += zeros + 1;
-		string += (offset&0b00001000)>>3;
-		offset = offset&0b00000111;
+		string += (offset&0x08)>>3;
+		offset = offset&0x07;
 		if(dict.next_chars[zeros]){
 			dict = *(dict.next_chars[zeros]);
 		} else {
@@ -94,8 +94,8 @@ void write_dictionary(dictionary *dict, char *string, void *value, unsigned char
 		}
 
 		offset += zeros + 1;
-		string += (offset&0b00001000)>>3;
-		offset = offset&0b00000111;
+		string += (offset&0x08)>>3;
+		offset = offset&0x07;
 		if(!dict->next_chars[zeros]){
 			dict->next_chars[zeros] = malloc(sizeof(dictionary));
 			*(dict->next_chars[zeros]) = create_dictionary((void *) 0);
