@@ -1,3 +1,5 @@
+//Guessing Game by Ben Jones for MCC
+
 void prints(char *);
 int inputd();
 

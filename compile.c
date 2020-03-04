@@ -10,7 +10,7 @@
 
 int num_vars = 0;
 int num_strs = 0;
-int current_line = 1;
+int current_line;
 type return_type;
 static char *program_beginning;
 static char *program_pointer;
@@ -68,11 +68,16 @@ void do_error(int status){
 }
 
 void compile_file(char *program, char *identifier_name, char *arguments, unsigned int identifier_length, unsigned int num_arguments, FILE *output_file){
+	int current_line_temp;
+
 	program_pointer = program;
 	program_beginning = program;
-	skip_whitespace(&program_pointer);
 	fprintf(output_file, ".data\n");
+	current_line = 1;
+	skip_whitespace(&program_pointer);
+	current_line_temp = current_line;
 	compile_string_constants(program_pointer, output_file);
+	current_line = current_line_temp;
 	fprintf(output_file, ".text\n\n");
 	while(*program_pointer){
 		compile_function(&program_pointer, identifier_name, arguments, identifier_length, num_arguments, output_file);
@@ -346,6 +351,9 @@ void compile_statement(char **c, FILE *output_file){
 
 void place_string_constant(char **c, FILE *output_file){
 	unsigned char ignore_next = 0;
+	char *beginning;
+
+	beginning = *c;
 
 	while(**c && (**c != '"' || ignore_next)){
 		fprintf(output_file, "%c", **c);
@@ -354,10 +362,16 @@ void place_string_constant(char **c, FILE *output_file){
 		} else {
 			ignore_next = 0;
 		}
+		if(**c == '\n'){
+			program_pointer = *c;
+			snprintf(error_message, sizeof(error_message), "Expected closing '\"'");
+			do_error(1);
+		}
 		++*c;
 	}
 
 	if(!**c){
+		program_pointer = beginning;
 		snprintf(error_message, sizeof(error_message), "Expected closing '\"'");
 		do_error(1);
 	}
@@ -368,6 +382,9 @@ void place_string_constant(char **c, FILE *output_file){
 void compile_string_constants(char *c, FILE *output_file){
 	while(*c){
 		if(*c != '"'){
+			if(*c == '\n'){
+				current_line++;
+			}
 			c++;
 		} else {
 			c++;

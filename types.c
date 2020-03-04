@@ -154,12 +154,20 @@ unsigned char is_whitespace(char c){
 	return c == ' ' || c == '\t' || c == '\n';
 }
 
+//Here we treat comments from "//..." as whitespace, skipping everything until the next newline character
 void skip_whitespace(char **c){
-	while(**c == ' ' || **c == '\t' || **c == '\n'){
+	while(**c == ' ' || **c == '\t' || **c == '\n' || (**c == '/' && (*c)[1] == '/')){
+		if(**c == '/' && (*c)[1] == '/'){
+			while(**c && **c != '\n'){
+				++*c;
+			}
+		}
 		if(**c == '\n'){
 			current_line++;
 		}
-		++*c;
+		if(**c){
+			++*c;
+		}
 	}
 }
 
