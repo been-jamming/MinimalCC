@@ -337,6 +337,9 @@ void compile_statement(char **c, FILE *output_file){
 		fprintf(output_file, "addi $sp, $sp, %d\n", variables_size + 8);
 		fprintf(output_file, "lw $ra, 0($sp)\n");
 		fprintf(output_file, "jr $ra\n");
+	} else if(**c == ';'){
+		//Empty statement, so pass
+		++*c;
 	} else {
 		expression_output = compile_expression(c, 1, 0, output_file);
 		deallocate(expression_output.data);
