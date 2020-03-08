@@ -29,7 +29,6 @@ We will build and execute a program which prints all of the primes less than 500
 - `<<` Shift left
 - `>>` Shift right (arithmetic)
 
-Note that `||` and `&&` may still be buggy.
 ### List of Unary Operations
 - `*` Dereference
 - `&` Reference
