@@ -12,6 +12,7 @@ int num_vars = 0;
 int num_strs = 0;
 int current_line;
 type return_type;
+static char *program;
 static char *program_beginning;
 static char *program_pointer;
 static char *source_files[MAX_SOURCEFILES] = {NULL};
@@ -62,6 +63,7 @@ void do_error(int status){
 	error_message[255] = '\0';
 	print_line();
 	fprintf(stderr, "Error: %s\n", error_message);
+	free(program);
 	free_local_variables();
 	free_global_variables();
 	exit(status);
@@ -94,6 +96,7 @@ void compile_function(char **c, char *identifier_name, char *arguments, unsigned
 	unsigned int current_argument = 0;
 
 	num_vars = 0;
+	variables_size = 0;
 	parse_type(&t, c, identifier_name, arguments, identifier_length, num_arguments);
 
 	if(!identifier_name){
@@ -148,11 +151,17 @@ void compile_function(char **c, char *identifier_name, char *arguments, unsigned
 			return;
 		}
 		++*c;
+		local_variables[0] = malloc(sizeof(dictionary));
+		*local_variables[0] = create_dictionary(NULL);
 		fprintf(output_file, "\n.globl %s\n%s:\n", identifier_name, identifier_name);
 		pop_type(&t);
 		while(peek_type(t) != type_returns){
 			if(current_argument >= num_arguments){
 				snprintf(error_message, sizeof(error_message), "Too many arguments!");
+				do_error(1);
+			}
+			if(read_dictionary(*local_variables[0], arguments, 0)){
+				snprintf(error_message, sizeof(error_message), "Duplicate argument names");
 				do_error(1);
 			}
 			argument_type = get_argument_type(&t);
@@ -161,7 +170,7 @@ void compile_function(char **c, char *identifier_name, char *arguments, unsigned
 			local_var->varname = malloc(strlen(arguments) + 1);
 			strcpy(local_var->varname, arguments);
 			local_var->stack_pos = variables_size;
-			write_dictionary(&local_variables, local_var->varname, local_var, 0);
+			write_dictionary(local_variables[0], local_var->varname, local_var, 0);
 			variables_size += 4;
 			arguments += identifier_length;
 			current_argument++;
@@ -176,31 +185,71 @@ void compile_function(char **c, char *identifier_name, char *arguments, unsigned
 		compile_block(c, 1, output_file);
 		++*c;
 		var->num_args = num_vars;
-		fprintf(output_file, "addi $sp, $sp, %d\n", variables_size + 8);
 		fprintf(output_file, "lw $ra, 0($sp)\n");
 		fprintf(output_file, "jr $ra\n");
 	}
 }
 
-void compile_block(char **c, unsigned char do_variable_initializers, FILE *output_file){
-	char *temp;
+static void free_var(void *v){
+	variable *var;
 
+	var = (variable *) v;
+	free(var->varname);
+	free(var);
+}
+
+void compile_block(char **c, unsigned char function_beginning, FILE *output_file){
+	char *temp;
+	unsigned char new_scope = 0;
+	int variables_size_before;
+
+	variables_size_before = variables_size;
 	skip_whitespace(c);
 	temp = *c;
-	while(do_variable_initializers && parse_datatype(NULL, &temp)){
+	if(function_beginning || parse_datatype(NULL, &temp)){
+		new_scope = 1;
+		current_scope++;
+		if(current_scope >= MAX_SCOPE){
+			snprintf(error_message, sizeof(error_message), "Scope depth too large");
+			do_error(1);
+		}
+		if(!local_variables[current_scope]){
+			local_variables[current_scope] = malloc(sizeof(dictionary));
+			*local_variables[current_scope] = create_dictionary(NULL);
+		}
+	}
+	temp = *c;
+	while(parse_datatype(NULL, &temp)){
 		compile_variable_initializer(c);
 		skip_whitespace(c);
 		temp = *c;
 		num_vars++;
 	}
 
-	if(do_variable_initializers){
-		fprintf(output_file, "addi $sp, $sp, %d\n", -(int) variables_size - 8);
+	if(new_scope){
+		if(function_beginning){
+			fprintf(output_file, "addi $sp, $sp, %d\n", -(int) variables_size - 8);
+		} else {
+			fprintf(output_file, "addi $sp, $sp, %d\n", -(int) variables_size + variables_size_before);
+		}
 	}
 
 	while(**c != '}'){
 		compile_statement(c, output_file);
 		skip_whitespace(c);
+	}
+
+	if(new_scope){
+		if(function_beginning){
+			fprintf(output_file, "addi $sp, $sp, %d\n", variables_size + 8);
+		} else {
+			fprintf(output_file, "addi $sp, $sp, %d\n", variables_size - variables_size_before);
+		}
+		free_dictionary(*local_variables[current_scope], free_var);
+		free(local_variables[current_scope]);
+		local_variables[current_scope] = NULL;
+		current_scope--;
+		variables_size = variables_size_before;
 	}
 }
 
@@ -235,17 +284,7 @@ void compile_statement(char **c, FILE *output_file){
 		}
 		++*c;
 		skip_whitespace(c);
-		if(**c == '{'){
-			++*c;
-			compile_block(c, 0, output_file);
-			if(**c != '}'){
-				snprintf(error_message, sizeof(error_message), "Expected '}'");
-				do_error(1);
-			}
-			++*c;
-		} else {
-			compile_statement(c, output_file);
-		}
+		compile_statement(c, output_file);
 		skip_whitespace(c);
 		if(!strncmp(*c, "else", 2) && !alphanumeric((*c)[4])){
 			*c += 4;
@@ -254,17 +293,7 @@ void compile_statement(char **c, FILE *output_file){
 			fprintf(output_file, "j __L%d\n", label_num1);
 			fprintf(output_file, "\n__L%d:\n", label_num0);
 			skip_whitespace(c);
-			if(**c == '{'){
-				++*c;
-				compile_block(c, 0, output_file);
-				if(**c != '}'){
-					snprintf(error_message, sizeof(error_message), "Expected '}'");
-					do_error(1);
-				}
-				++*c;
-			} else {
-				compile_statement(c, output_file);
-			}
+			compile_statement(c, output_file);
 			fprintf(output_file, "\n__L%d:\n", label_num1);
 		} else {
 			fprintf(output_file, "\n__L%d:\n", label_num0);
@@ -296,17 +325,7 @@ void compile_statement(char **c, FILE *output_file){
 		}
 		++*c;
 		skip_whitespace(c);
-		if(**c == '{'){
-			++*c;
-			compile_block(c, 0, output_file);
-			if(**c != '}'){
-				snprintf(error_message, sizeof(error_message), "Expected '}'");
-				do_error(1);
-			}
-			++*c;
-		} else {
-			compile_statement(c, output_file);
-		}
+		compile_statement(c, output_file);
 		fprintf(output_file, "j __L%d\n", label_num0);
 		fprintf(output_file, "\n__L%d:\n", label_num1);
 	} else if(!strncmp(*c, "return", 6) && !alphanumeric((*c)[6])){
@@ -339,6 +358,14 @@ void compile_statement(char **c, FILE *output_file){
 		fprintf(output_file, "jr $ra\n");
 	} else if(**c == ';'){
 		//Empty statement, so pass
+		++*c;
+	} else if(**c == '{'){
+		++*c;
+		compile_block(c, 0, output_file);
+		if(**c != '}'){
+			snprintf(error_message, sizeof(error_message), "Expected '}'");
+			do_error(1);
+		}
 		++*c;
 	} else {
 		expression_output = compile_expression(c, 1, 0, output_file);
@@ -445,7 +472,6 @@ int main(int argc, char **argv){
 	char arguments[32*32];
 	FILE *fp;
 	unsigned int file_size;
-	char *program;
 	char *output_filename = NULL;
 
 	if(argc < 2){
@@ -463,6 +489,8 @@ int main(int argc, char **argv){
 	}
 	global_variables = create_dictionary(NULL);
 	current_source_file = source_files;
+	current_scope = -1;
+	memset(local_variables, 0, sizeof(local_variables));
 	while(*current_source_file){
 		fp = fopen(*current_source_file, "r");
 		if(!fp){
@@ -482,7 +510,6 @@ int main(int argc, char **argv){
 		}
 		fclose(fp);
 		initialize_register_list();
-		initialize_variables();
 		compile_file(program, identifier_name, arguments, 32, 32, output_file);
 		free(program);
 		current_source_file++;

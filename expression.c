@@ -5,7 +5,10 @@
 #include "expression.h"
 #include "compile.h"
 
-dictionary local_variables;
+unsigned int scopes[MAX_SCOPE];
+int current_scope;
+
+dictionary *local_variables[MAX_SCOPE];
 dictionary global_variables;
 unsigned int num_labels = 0;
 unsigned int current_string = 0;
@@ -301,11 +304,7 @@ int type_size(type t){
 	return 0;
 }
 
-void initialize_variables(){
-	local_variables = create_dictionary(NULL);
-}
-
-void free_var(void *v){
+static void free_var(void *v){
 	variable *var;
 
 	var = (variable *) v;
@@ -313,14 +312,22 @@ void free_var(void *v){
 	free(var);
 }
 
-void free_local_variables(){
-	free_dictionary(local_variables, free_var);
-	initialize_variables();
-	variables_size = 0;
-}
-
 void free_global_variables(){
 	free_dictionary(global_variables, free_var);
+}
+
+void free_local_variables(){
+	int i;
+
+	for(i = current_scope; i >= 0; i--){
+		if(local_variables[i]){
+			free_dictionary(*local_variables[i], free_var);
+			free(local_variables[i]);
+			local_variables[i] = NULL;
+		}
+	}
+
+	variables_size = 0;
 }
 
 unsigned int align4(unsigned int size){
@@ -336,16 +343,24 @@ unsigned int align4(unsigned int size){
 
 void compile_variable_initializer(char **c){
 	variable *var;
-	char *varname;
+	char varname_buf[32];
+	type vartype;
 
+	vartype = EMPTY_TYPE;
+	parse_type(&vartype, c, varname_buf, NULL, 32, 0);
 	var = malloc(sizeof(variable));
-	varname = malloc(sizeof(char)*32);
-	var->var_type = EMPTY_TYPE;
-	parse_type(&(var->var_type), c, varname, NULL, 32, 0);
-	var->varname = varname;
+	var->varname = malloc(sizeof(char)*32);
+	var->var_type = vartype;
+	strcpy(var->varname, varname_buf);
 	variables_size += align4(type_size(var->var_type));
 	var->stack_pos = variables_size - 4;
-	write_dictionary(&local_variables, var->varname, var, 0);
+	if(read_dictionary(*local_variables[current_scope], var->varname, 0)){
+		free(var->varname);
+		free(var);
+		snprintf(error_message, sizeof(error_message), "Duplicate local variable definition");
+		do_error(1);
+	}
+	write_dictionary(local_variables[current_scope], var->varname, var, 0);
 	skip_whitespace(c);
 	if(**c != ';'){
 		snprintf(error_message, sizeof(error_message), "Expected ';'");
@@ -486,6 +501,7 @@ value compile_variable(char **c, unsigned char dereference, unsigned char force_
 	char varname[32] = {0};
 	unsigned int varname_length = 0;
 	variable *var;
+	int i;
 
 	skip_whitespace(c);
 	start = *c;
@@ -496,7 +512,13 @@ value compile_variable(char **c, unsigned char dereference, unsigned char force_
 	memcpy(varname, start, varname_length);
 	varname[31] = '\0';
 
-	var = read_dictionary(local_variables, varname, 0);
+	for(i = current_scope; i >= 0; i--){
+		var = read_dictionary(*local_variables[i], varname, 0);
+		if(var){
+			break;
+		}
+	}
+
 	if(!var){
 		var = read_dictionary(global_variables, varname, 0);
 		if(!var){

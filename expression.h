@@ -1,6 +1,8 @@
 #include "allocate.h"
 #include "types.h"
 
+#define MAX_SCOPE 32
+
 #define VOID_SIZE 1
 #define CHAR_SIZE 1
 #define INT_SIZE 4
@@ -50,7 +52,7 @@ struct value{
 	unsigned char is_reference;
 };
 
-extern dictionary local_variables;
+extern dictionary *local_variables[MAX_SCOPE];
 extern dictionary global_variables;
 void free_local_variables();
 void free_global_variables();
@@ -62,3 +64,5 @@ void compile_variable_initializer(char **c);
 value cast(value v, type t, unsigned char do_warn, FILE *output_file);
 value compile_expression(char **c, unsigned char dereference, unsigned char force_stack, FILE *output_file);
 
+extern unsigned int scopes[MAX_SCOPE];
+extern int current_scope;

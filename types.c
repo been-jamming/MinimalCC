@@ -127,19 +127,19 @@ unsigned char parse_identifier(char **c, char *identifier_name, unsigned int ide
 }
 
 unsigned char parse_datatype(type *t, char **c){
-	if(!strncmp(*c, "void", 4)){
+	if(!strncmp(*c, "void", 4) && !alphanumeric((*c)[4])){
 		if(t){
 			add_type_entry(t, type_void);
 		}
 		*c += 4;
 		return 1;
-	} else if(!strncmp(*c, "int", 3)){
+	} else if(!strncmp(*c, "int", 3) && !alphanumeric((*c)[3])){
 		if(t){
 			add_type_entry(t, type_int);
 		}
 		*c += 3;
 		return 1;
-	} else if(!strncmp(*c, "char", 4)){
+	} else if(!strncmp(*c, "char", 4) && !alphanumeric((*c)[4])){
 		if(t){
 			add_type_entry(t, type_char);
 		}
