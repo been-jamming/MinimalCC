@@ -378,7 +378,7 @@ value compile_integer(char **c, unsigned char dereference, unsigned char force_s
 		do_error(1);
 	}
 	output.data = allocate(force_stack);
-	int_value = strtol(*c, c, 10);
+	int_value = strtol(*c, c, 0);
 	if(output.data.type == data_register){
 		fprintf(output_file, "li $s%d, %d\n", (int) output.data.reg, int_value);
 	} else if(output.data.type == data_stack){
