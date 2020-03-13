@@ -19,6 +19,8 @@ We will build and execute a program which prints all of the primes less than 500
 - `=` Assign
 - `<` Less than
 - `>` Greater than
+- `<=` Less than or equal
+- `>=` Greater than or equal
 - `==` Equals
 - `!=` Not equals
 - `&` Bitwise AND

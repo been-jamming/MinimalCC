@@ -12,7 +12,7 @@ dictionary *local_variables[MAX_SCOPE];
 dictionary global_variables;
 unsigned int num_labels = 0;
 unsigned int current_string = 0;
-static unsigned int order_of_operations[] = {0, 9, 9, 10, 10, 1, 7, 7, 6, 6, 5, 4, 9, 3, 2, 8, 8};
+static unsigned int order_of_operations[] = {0, 9, 9, 10, 10, 1, 7, 7, 7, 7, 6, 6, 5, 4, 9, 3, 2, 8, 8};
 
 type operation_none_func(char *reg_a, char *reg_b, value value_a, value value_b, FILE *output_file){
 	snprintf(error_message, sizeof(error_message), "Unrecognized operation");
@@ -184,6 +184,26 @@ type operation_greater_than_func(char *reg_a, char *reg_b, value value_a, value 
 	return INT_TYPE;
 }
 
+type operation_less_than_or_equal_func(char *reg_a, char *reg_b, value value_a, value value_b, FILE *output_file){
+	if((!types_equal(value_a.data_type, INT_TYPE) && !types_equal(value_a.data_type, CHAR_TYPE)) || (!types_equal(value_b.data_type, INT_TYPE) && !types_equal(value_b.data_type, CHAR_TYPE))){
+		snprintf(error_message, sizeof(error_message), "Cannot compare non-int types with '<='");
+		do_error(1);
+	}
+	fprintf(output_file, "sgt %s, %s, %s\n", reg_a, reg_a, reg_b);
+	fprintf(output_file, "seq %s, %s, $zero\n", reg_a, reg_a);
+	return INT_TYPE;
+}
+
+type operation_greater_than_or_equal_func(char *reg_a, char *reg_b, value value_a, value value_b, FILE *output_file){
+	if((!types_equal(value_a.data_type, INT_TYPE) && !types_equal(value_a.data_type, CHAR_TYPE)) || (!types_equal(value_b.data_type, INT_TYPE) && !types_equal(value_b.data_type, CHAR_TYPE))){
+		snprintf(error_message, sizeof(error_message), "Cannot compare non-int types with '>='");
+		do_error(1);
+	}
+	fprintf(output_file, "slt %s, %s, %s\n", reg_a, reg_a, reg_b);
+	fprintf(output_file, "seq %s, %s, $zero\n", reg_a, reg_a);
+	return INT_TYPE;
+}
+
 type operation_equals_func(char *reg_a, char *reg_b, value value_a, value value_b, FILE *output_file){
 	if(peek_type(value_a.data_type) == type_function || peek_type(value_b.data_type) == type_function){
 		snprintf(error_message, sizeof(error_message), "Cannot compare function types");
@@ -282,7 +302,7 @@ type operation_shift_right_func(char *reg_a, char *reg_b, value value_a, value v
 	return INT_TYPE;
 }
 
-type (*operation_functions[])(char *, char *, value, value, FILE *) = {operation_none_func, operation_add_func, operation_subtract_func, operation_multiply_func, operation_divide_func, operation_assign_func, operation_less_than_func, operation_greater_than_func, operation_equals_func, operation_not_equals_func, operation_and_func, operation_or_func, operation_modulo_func, operation_none_func, operation_none_func, operation_shift_left_func, operation_shift_right_func};
+type (*operation_functions[])(char *, char *, value, value, FILE *) = {operation_none_func, operation_add_func, operation_subtract_func, operation_multiply_func, operation_divide_func, operation_assign_func, operation_less_than_func, operation_greater_than_func, operation_less_than_or_equal_func, operation_greater_than_or_equal_func, operation_equals_func, operation_not_equals_func, operation_and_func, operation_or_func, operation_modulo_func, operation_none_func, operation_none_func, operation_shift_left_func, operation_shift_right_func};
 
 int type_size(type t){
 	switch(pop_type(&t)){
@@ -1159,12 +1179,16 @@ operation peek_operation(char *c){
 		case '>':
 			if(c[1] == '>'){
 				return operation_shift_right;
+			} else if(c[1] == '='){
+				return operation_greater_than_or_equal;
 			} else {
 				return operation_greater_than;
 			}
 		case '<':
 			if(c[1] == '<'){
 				return operation_shift_left;
+			} else if(c[1] == '='){
+				return operation_less_than_or_equal;
 			} else {
 				return operation_less_than;
 			}
@@ -1225,6 +1249,9 @@ operation get_operation(char **c){
 			if((*c)[1] == '>'){
 				output = operation_shift_right;
 				++*c;
+			} else if((*c)[1] == '='){
+				output = operation_greater_than_or_equal;
+				++*c;
 			} else {
 				output = operation_greater_than;
 			}
@@ -1232,6 +1259,9 @@ operation get_operation(char **c){
 		case '<':
 			if((*c)[1] == '<'){
 				output = operation_shift_left;
+				++*c;
+			} else if((*c)[1] == '='){
+				output = operation_less_than_or_equal;
 				++*c;
 			} else {
 				output = operation_less_than;

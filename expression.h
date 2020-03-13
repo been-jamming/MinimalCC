@@ -17,6 +17,8 @@ enum operation{
 	operation_assign,
 	operation_less_than,
 	operation_greater_than,
+	operation_less_than_or_equal,
+	operation_greater_than_or_equal,
 	operation_equals,
 	operation_not_equals,
 	operation_and,
