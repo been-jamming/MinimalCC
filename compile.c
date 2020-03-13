@@ -410,9 +410,15 @@ void place_string_constant(char **c, FILE *output_file){
 }
 
 void compile_string_constants(char *c, FILE *output_file){
+	unsigned char ignore;
+
+	ignore = 0;
 	while(*c){
-		if(*c != '"'){
-			if(*c == '\n'){
+		if(ignore || *c != '"'){
+			ignore = 0;
+			if(*c == '\\' || *c == '\''){
+				ignore = 1;
+			} else if(*c == '\n'){
 				current_line++;
 			}
 			c++;
