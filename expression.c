@@ -373,10 +373,6 @@ value compile_integer(char **c, unsigned char dereference, unsigned char force_s
 	value output;
 	int int_value;
 
-	if(!dereference){
-		snprintf(error_message, sizeof(error_message), "Cannot take address of r-value");
-		do_error(1);
-	}
 	output.data = allocate(force_stack);
 	int_value = strtol(*c, c, 0);
 	if(output.data.type == data_register){
@@ -385,6 +381,7 @@ value compile_integer(char **c, unsigned char dereference, unsigned char force_s
 		fprintf(output_file, "li $t0, %d\nsw $t0, %d($sp)\n", int_value, -(int) output.data.stack_pos);
 	}
 	output.data_type = INT_TYPE;
+	output.is_reference = 0;
 
 	return output;
 }
@@ -451,6 +448,8 @@ static value compile_local_variable(variable *var, unsigned char dereference, un
 		}
 		add_type_entry(&(output.data_type), type_pointer);
 	}
+
+	output.is_reference = !dereference;
 
 	return output;
 }
@@ -616,6 +615,7 @@ value compile_dereference(value v, FILE *output_file){
 	}
 
 	v.data_type = data_type;
+	v.is_reference = 0;
 	return v;
 }
 
@@ -788,6 +788,7 @@ value compile_list_index(char **c, value address, unsigned char dereference, FIL
 			add_type_entry(&(address.data_type), type_pointer);
 		}
 	}
+	address.is_reference = !dereference;
 	return address;
 }
 
@@ -844,10 +845,24 @@ void skip_string(char **c){
 	}
 }
 
+unsigned char is_cast(char *c){
+	if(*c != '('){
+		return 0;
+	}
+
+	c++;
+	return parse_datatype(NULL, &c);
+}
+
 void skip_value(char **c){
 	skip_whitespace(c);
-	while(**c == '*' || **c == '&' || **c == '!' || **c == '~' || **c == '-' || is_whitespace(**c)){
-		++*c;
+	while(**c == '*' || **c == '&' || **c == '!' || **c == '~' || **c == '-' || is_cast(*c) || is_whitespace(**c)){
+		if(**c == '('){//ie if we are casting
+			++*c;
+			match_parentheses(c);
+		} else {
+			++*c;
+		}
 	}
 	while(**c == '('){
 		++*c;
@@ -876,8 +891,6 @@ void skip_value(char **c){
 		if(**c){
 			++*c;
 		}
-	} else {
-		return;
 	}
 	skip_whitespace(c);
 	while(**c == '[' || **c == '('){
@@ -896,10 +909,6 @@ void skip_value(char **c){
 value compile_string(char **c, unsigned char dereference, unsigned char force_stack, FILE *output_file){
 	value output;
 
-	if(!dereference){
-		snprintf(error_message, sizeof(error_message), "Can't get address of r-value");
-		do_error(1);
-	}
 	++*c;
 	skip_string(c);
 
@@ -925,10 +934,6 @@ value compile_character(char **c, unsigned char dereference, unsigned char force
 	int escape_values[] = {0x07, 0x08, 0x1B, 0x0C, 0x0A, 0x0D, 0x09, 0x0B, 0x5C, 0x27, 0x22, 0x3F};
 	unsigned char i;
 
-	if(!dereference){
-		snprintf(error_message, sizeof(error_message), "Can't get address of r-value");
-		do_error(1);
-	}
 	++*c;
 
 	if(**c == '\\'){
@@ -1069,18 +1074,12 @@ value compile_value(char **c, unsigned char dereference, unsigned char force_sta
 		return output;
 	}
 
-	skip_whitespace(c);
-
 	if(**c == '('){
 		++*c;
 		skip_whitespace(c);
 		temp_c = *c;
 		//Type casting
 		if(parse_datatype(NULL, &temp_c)){
-			if(!dereference){
-				snprintf(error_message, sizeof(error_message), "Can't get address of r-value");
-				do_error(1);
-			}
 			cast_type = EMPTY_TYPE;
 			parse_type(&cast_type, c, NULL, NULL, 0, 0);
 			if(**c != ')'){
@@ -1115,15 +1114,14 @@ value compile_value(char **c, unsigned char dereference, unsigned char force_sta
 	skip_whitespace(c);
 	while(**c == '[' || **c == '('){
 		if(**c == '['){
-			if(!dereference){
+			if(output.is_reference){
 				output = compile_dereference(output, output_file);
 			}
 			output = compile_list_index(c, output, dereference, output_file);
 		} else if(**c == '('){
 			++*c;
-			if(!dereference){
-				snprintf(error_message, sizeof(error_message), "Cannot get address of return value of function");
-				do_error(1);
+			if(output.is_reference){
+				output = compile_dereference(output, output_file);
 			}
 			output = compile_function_call(c, output, output_file);
 		}
@@ -1131,7 +1129,6 @@ value compile_value(char **c, unsigned char dereference, unsigned char force_sta
 		skip_whitespace(c);
 	}
 
-	output.is_reference = !dereference;
 	return output;
 }
 
@@ -1264,17 +1261,12 @@ operation get_operation(char **c){
 	return output;
 }
 
-value compile_operation(value first_value, value next_value, operation op, unsigned char dereference, FILE *output_file){
+value compile_operation(value first_value, value next_value, operation op, FILE *output_file){
 	char reg0_str_buffer[5] = {0, 0, 0, 0, 0};
 	char reg1_str_buffer[5] = {0, 0, 0, 0, 0};
 	char *reg0_str = "";
 	char *reg1_str = "";
 	type output_type;
-
-	if(!dereference){
-		snprintf(error_message, sizeof(error_message), "Can't get address of r-value expression");
-		do_error(1);
-	}
 
 	if(types_equal(first_value.data_type, VOID_TYPE) || types_equal(next_value.data_type, VOID_TYPE)){
 		snprintf(error_message, sizeof(error_message), "Can't operate on void value");
@@ -1326,10 +1318,7 @@ value compile_operation(value first_value, value next_value, operation op, unsig
 	return first_value;
 }
 
-//Note: dereference = 0 and an operation is compiled will cause an error!
-//This is intended behavior. In essence, at this point dereference just tells whether
-//compiling an operation should cause an error.
-static value compile_expression_recursive(value first_value, char **c, unsigned char dereference, FILE *output_file){
+static value compile_expression_recursive(value first_value, char **c, FILE *output_file){
 	operation current_operation;
 	operation next_operation;
 	unsigned int label_num;
@@ -1380,7 +1369,7 @@ static value compile_expression_recursive(value first_value, char **c, unsigned 
 	}
 	skip_whitespace(c);
 	while(order_of_operations[next_operation] > order_of_operations[current_operation]){
-		next_value = compile_expression_recursive(next_value, c, 1, output_file);
+		next_value = compile_expression_recursive(next_value, c, output_file);
 		skip_whitespace(c);
 		next_operation = peek_operation(*c);
 	}
@@ -1388,12 +1377,8 @@ static value compile_expression_recursive(value first_value, char **c, unsigned 
 		cast_to = first_value.data_type;
 		pop_type(&cast_to);
 		next_value = cast(next_value, cast_to, 1, output_file);
-		first_value = compile_operation(first_value, next_value, current_operation, dereference, output_file);
+		first_value = compile_operation(first_value, next_value, current_operation, output_file);
 	} else if(current_operation == operation_logical_or || current_operation == operation_logical_and){
-		if(!dereference){
-			snprintf(error_message, sizeof(error_message), "Cannot take address of r-value");
-			do_error(1);
-		}
 		next_value = cast(next_value, INT_TYPE, 1, output_file);
 		if(next_value.data.type == data_register){
 			fprintf(output_file, "sne $s%d, $s%d, $zero\n", next_value.data.reg, next_value.data.reg);
@@ -1415,7 +1400,7 @@ static value compile_expression_recursive(value first_value, char **c, unsigned 
 		deallocate(next_value.data);
 		fprintf(output_file, "\n__L%d:\n", label_num);
 	} else {
-		first_value = compile_operation(first_value, next_value, current_operation, dereference, output_file);
+		first_value = compile_operation(first_value, next_value, current_operation, output_file);
 	}
 	skip_whitespace(c);
 
@@ -1426,19 +1411,21 @@ value compile_expression(char **c, unsigned char dereference, unsigned char forc
 	value first_value;
 	char *temp_c;
 	int current_line_temp;
+	operation next_operation;
 
 	temp_c = *c;
 	current_line_temp = current_line;
 	skip_value(&temp_c);
 	current_line = current_line_temp;
 
+	next_operation = peek_operation(temp_c);
 	if(peek_operation(temp_c) == operation_assign){
 		first_value = compile_value(c, 0, force_stack, output_file);
 	} else {
-		first_value = compile_value(c, dereference, force_stack, output_file);
+		first_value = compile_value(c, dereference || next_operation != operation_none, force_stack, output_file);
 	}
 	while(**c && **c != ';' && **c != ',' && **c != ')' && **c != ']'){
-		first_value = compile_expression_recursive(first_value, c, dereference, output_file);
+		first_value = compile_expression_recursive(first_value, c, output_file);
 	}
 
 	return first_value;
