@@ -72,7 +72,6 @@ void *read_dictionary(dictionary dict, char *string, unsigned char offset){
 	return dict.value;
 }
 
-
 void write_dictionary(dictionary *dict, char *string, void *value, unsigned char offset){
 	unsigned char zeros = 0;
 	unsigned char c;
