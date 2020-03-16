@@ -137,7 +137,7 @@ void compile_function(char **c, char *identifier_name, char *arguments, unsigned
 			strcpy(var->varname, identifier_name);
 			write_dictionary(&global_variables, var->varname, var, 0);
 		} else {
-			if(!types_equal(var->var_type, t)){
+			if(!types_equal(&(var->var_type), &t)){
 				snprintf(error_message, sizeof(error_message), "Incompatible function definitions");
 				do_error(1);
 			}
@@ -267,7 +267,7 @@ void compile_statement(char **c, FILE *output_file){
 			do_error(1);;
 		}
 		++*c;
-		expression_output = compile_expression(c, 1, 0, output_file);
+		compile_expression(&expression_output, c, 1, 0, output_file);
 		label_num0 = num_labels;
 		num_labels++;
 		if(expression_output.data.type == data_register){
@@ -310,7 +310,7 @@ void compile_statement(char **c, FILE *output_file){
 		label_num1 = num_labels + 1;
 		num_labels += 2;
 		fprintf(output_file, "\n__L%d:\n", label_num0);
-		expression_output = compile_expression(c, 1, 0, output_file);
+		compile_expression(&expression_output, c, 1, 0, output_file);
 		if(expression_output.data.type == data_register){
 			fprintf(output_file, "beq $s%d, $zero, __L%d\n", expression_output.data.reg, label_num1);
 		} else if(expression_output.data.type == data_stack){
@@ -331,20 +331,20 @@ void compile_statement(char **c, FILE *output_file){
 	} else if(!strncmp(*c, "return", 6) && !alphanumeric((*c)[6])){
 		*c += 6;
 		skip_whitespace(c);
-		if(types_equal(return_type, VOID_TYPE)){
+		if(types_equal(&return_type, &VOID_TYPE)){
 			if(**c != ';'){
 				snprintf(error_message, sizeof(error_message), "Expected ';' for return in void function");
 				do_error(1);
 			}
 			++*c;
 		} else {
-			expression_output = compile_expression(c, 1, 0, output_file);
+			compile_expression(&expression_output, c, 1, 0, output_file);
 			if(**c != ';'){
 				snprintf(error_message, sizeof(error_message), "Expected ';'");
 				do_error(1);
 			}
 			++*c;
-			cast(expression_output, return_type, 1, output_file);
+			cast(&expression_output, return_type, 1, output_file);
 			if(expression_output.data.type == data_register){
 				fprintf(output_file, "sw $s%d, %d($sp)\n", expression_output.data.reg, variables_size + 4);
 			} else if(expression_output.data.type == data_stack){
@@ -368,7 +368,7 @@ void compile_statement(char **c, FILE *output_file){
 		}
 		++*c;
 	} else {
-		expression_output = compile_expression(c, 1, 0, output_file);
+		compile_expression(&expression_output, c, 1, 0, output_file);
 		deallocate(expression_output.data);
 		if(**c == ';'){
 			++*c;
