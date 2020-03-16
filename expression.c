@@ -100,6 +100,7 @@ void operation_subtract_func(char *reg_a, char *reg_b, value *value_a, value *va
 			pointer_value = *value_b;
 			integer_reg = reg_a;
 		} else {
+			fprintf(output_file, "sub %s, %s, %s\n", reg_a, reg_a, reg_b);
 			*output_type = INT_TYPE;
 			return;
 		}
