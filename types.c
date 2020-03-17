@@ -179,16 +179,16 @@ void skip_whitespace(char **c){
 	}
 }
 
-int peek_type(type t){
+int peek_type(type *t){
 	int output = 0;
 
-	if(t.d0&1){
+	if(t->d0&1){
 		output |= 1;
 	}
-	if(t.d1&1){
+	if(t->d1&1){
 		output |= 2;
 	}
-	if(t.d2&1){
+	if(t->d2&1){
 		output |= 4;
 	}
 
@@ -282,18 +282,27 @@ type get_argument_type(type *t){
 	return output;
 }
 
-void print_type(type t){
+void print_type(type *t){
+	uint64_t d0;
+	uint64_t d1;
+	uint64_t d2;
+	unsigned int index;
 	unsigned int type_entry_int;
 
-	while(t.d0 | t.d1 | t.d2){
+	d0 = t->d0;
+	d1 = t->d1;
+	d2 = t->d2;
+	index = t->current_index;
+
+	while(d0 | d1 | d2){
 		type_entry_int = 0;
-		if(t.d0&1){
+		if(d0&1){
 			type_entry_int |= 1;
 		}
-		if(t.d1&1){
+		if(d1&1){
 			type_entry_int |= 2;
 		}
-		if(t.d2&1){
+		if(d2&1){
 			type_entry_int |= 4;
 		}
 		switch(type_entry_int){
@@ -316,15 +325,15 @@ void print_type(type t){
 				printf(") returning ");
 				break;
 			case type_list:
-				t.current_index--;
-				printf("list of length %d of ", t.list_indicies[t.current_index]);
+				index--;
+				printf("list of length %d of ", t->list_indicies[index]);
 				break;
 			default:
 				printf("unknown ");
 		}
-		t.d0 >>= 1;
-		t.d1 >>= 1;
-		t.d2 >>= 1;
+		d0 >>= 1;
+		d1 >>= 1;
+		d2 >>= 1;
 	}
 }
 
@@ -353,7 +362,7 @@ void parse_type_arguments(type *t, char **c, char *argument_names, unsigned int 
 		do_error(1);;
 	}
 	parse_type(&temp_type, c, argument_names, NULL, identifier_length, 0);
-	if(peek_type(temp_type) == type_list){
+	if(peek_type(&temp_type) == type_list){
 		pop_type(&temp_type);
 		temp_type.current_index--;
 		add_type_entry(&temp_type, type_pointer);

@@ -59,7 +59,7 @@ extern dictionary global_variables;
 void free_local_variables();
 void free_global_variables();
 extern unsigned int num_labels;
-int type_size(type t);
+int type_size(type *t);
 void initialize_variables();
 unsigned int align4(unsigned int size);
 void compile_variable_initializer(char **c);

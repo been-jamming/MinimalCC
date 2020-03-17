@@ -104,7 +104,7 @@ void compile_function(char **c, char *identifier_name, char *arguments, unsigned
 		do_error(1);
 	}
 	skip_whitespace(c);
-	if(peek_type(t) != type_function){
+	if(peek_type(&t) != type_function){
 		skip_whitespace(c);
 		if(**c != ';'){
 			snprintf(error_message, sizeof(error_message), "Expected ';'");
@@ -122,7 +122,7 @@ void compile_function(char **c, char *identifier_name, char *arguments, unsigned
 		var->leave_as_address = 0;
 		strcpy(var->varname, identifier_name);
 		write_dictionary(&global_variables, var->varname, var, 0);
-		fprintf(output_file, ".data\n.align 2\n%s:\n.space %d\n.text\n", identifier_name, align4(type_size(t)));
+		fprintf(output_file, ".data\n.align 2\n%s:\n.space %d\n.text\n", identifier_name, align4(type_size(&t)));
 	} else {
 		if(!*identifier_name){
 			snprintf(error_message, sizeof(error_message), "Expected function name");
@@ -155,7 +155,7 @@ void compile_function(char **c, char *identifier_name, char *arguments, unsigned
 		*local_variables[0] = create_dictionary(NULL);
 		fprintf(output_file, "\n.globl %s\n%s:\n", identifier_name, identifier_name);
 		pop_type(&t);
-		while(peek_type(t) != type_returns){
+		while(peek_type(&t) != type_returns){
 			if(current_argument >= num_arguments){
 				snprintf(error_message, sizeof(error_message), "Too many arguments!");
 				do_error(1);
@@ -178,7 +178,7 @@ void compile_function(char **c, char *identifier_name, char *arguments, unsigned
 		}
 		pop_type(&t);
 		return_type = t;
-		if(peek_type(return_type) == type_function){
+		if(peek_type(&return_type) == type_function){
 			snprintf(error_message, sizeof(error_message), "Function cannot return function");
 			do_error(1);
 		}
