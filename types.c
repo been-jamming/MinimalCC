@@ -5,10 +5,10 @@
 #include "types.h"
 #include "compile.h"
 
-const type INT_TYPE = {.d0 = 0, .d1 = 1, .d2 = 0, .list_indicies = {0}, .current_index = 0};
-const type VOID_TYPE = {.d0 = 1, .d1 = 0, .d2 = 0, .list_indicies = {0}, .current_index = 0};
-const type CHAR_TYPE = {.d0 = 1, .d1 = 1, .d2 = 0, .list_indicies = {0}, .current_index = 0};
-const type EMPTY_TYPE = {.d0 = 0, .d1 = 0, .d2 = 0, .list_indicies = {0}, .current_index = 0};
+type INT_TYPE = {.d0 = 0, .d1 = 1, .d2 = 0, .list_indicies = {0}, .current_index = 0};
+type VOID_TYPE = {.d0 = 1, .d1 = 0, .d2 = 0, .list_indicies = {0}, .current_index = 0};
+type CHAR_TYPE = {.d0 = 1, .d1 = 1, .d2 = 0, .list_indicies = {0}, .current_index = 0};
+type EMPTY_TYPE = {.d0 = 0, .d1 = 0, .d2 = 0, .list_indicies = {0}, .current_index = 0};
 
 unsigned char alpha(char c){
 	return (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || c == '_';
@@ -150,13 +150,13 @@ unsigned char parse_datatype(type *t, char **c){
 	}
 }
 
-unsigned char is_whitespace(char c){
-	return c == ' ' || c == '\t' || c == '\n';
+unsigned char is_whitespace(char *c){
+	return *c == ' ' || *c == '\t' || *c == '\n' || *c == '\r' || (*c == '/' && (c[1] == '/' || c[1] == '*'));
 }
 
 //Here we treat comments from "//..." and "/*...*/" as whitespace, skipping everything until the next newline character
 void skip_whitespace(char **c){
-	while(**c == ' ' || **c == '\t' || **c == '\n' || (**c == '/' && ((*c)[1] == '/' || (*c)[1] == '*'))){
+	while(**c == ' ' || **c == '\t' || **c == '\n' || **c == '\r' || (**c == '/' && ((*c)[1] == '/' || (*c)[1] == '*'))){
 		if(**c == '/' && (*c)[1] == '/'){
 			while(**c && **c != '\n'){
 				++*c;
@@ -215,34 +215,38 @@ int pop_type(type *t){
 	return output;
 }
 
-unsigned char types_equal(type t0, type t1){
+unsigned char types_equal(type *t0, type *t1){
 	unsigned char i;
+	unsigned int t0_index;
+	unsigned int t1_index;
 
-	if(t0.d0 != t1.d0 || t0.d1 != t1.d1 || t0.d2 != t1.d2){
+	if(t0->d0 != t1->d0 || t0->d1 != t1->d1 || t0->d2 != t1->d2){
 		return 0;
 	}
-	if(t0.current_index == 0 && t1.current_index != 0 && t1.list_indicies[t1.current_index - 1] != 0){
+	if(t0->current_index == 0 && t1->current_index != 0 && t1->list_indicies[t1->current_index - 1] != 0){
 		return 0;
 	}
-	if(t1.current_index == 0 && t0.current_index != 0 && t0.list_indicies[t0.current_index - 1] != 0){
+	if(t1->current_index == 0 && t0->current_index != 0 && t0->list_indicies[t0->current_index - 1] != 0){
 		return 0;
 	}
-	if(!t0.current_index || !t1.current_index){
+	if(!t0->current_index || !t1->current_index){
 		return 1;
 	}
+	t0_index = t0->current_index;
+	t1_index = t1->current_index;
 	for(i = 0; i < 8; i++){
-		t0.current_index--;
-		t1.current_index--;
-		if(t0.list_indicies[t0.current_index] != t1.list_indicies[t1.current_index]){
+		t0_index--;
+		t1_index--;
+		if(t0->list_indicies[t0_index] != t1->list_indicies[t1_index]){
 			return 0;
 		}
-		if(t0.current_index == 0 && t1.current_index != 0 && t1.list_indicies[t1.current_index - 1] != 0){
+		if(t0_index == 0 && t1_index != 0 && t1->list_indicies[t1_index - 1] != 0){
 			return 0;
 		}
-		if(t1.current_index == 0 && t0.current_index != 0 && t0.list_indicies[t0.current_index - 1] != 0){
+		if(t1_index == 0 && t0_index != 0 && t0->list_indicies[t0_index - 1] != 0){
 			return 0;
 		}
-		if(!t0.current_index || !t1.current_index){
+		if(!t0_index || !t1_index){
 			break;
 		}
 	}
