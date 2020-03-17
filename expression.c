@@ -853,6 +853,26 @@ void skip_string(char **c){
 	}
 }
 
+void skip_comment(char **c){
+	++*c;
+	if(**c == '/'){
+		while(**c && **c != '\n'){
+			++*c;
+		}
+		if(**c){
+			++*c;
+		}
+	} else {
+		++*c;
+		while(**c && (**c != '*' || (*c)[1] != '/')){
+			++*c;
+		}
+		if(**c){
+			*c += 2;
+		}
+	}
+}
+
 unsigned char is_cast(char *c){
 	if(*c != '('){
 		return 0;
@@ -864,10 +884,12 @@ unsigned char is_cast(char *c){
 
 void skip_value(char **c){
 	skip_whitespace(c);
-	while(**c == '*' || **c == '&' || **c == '!' || **c == '~' || **c == '-' || is_cast(*c) || is_whitespace(**c)){
+	while(**c == '*' || **c == '&' || **c == '!' || **c == '~' || **c == '-' || is_cast(*c) || is_whitespace(*c)){
 		if(**c == '('){//ie if we are casting
 			++*c;
 			match_parentheses(c);
+		} else if(**c == '/'){
+			skip_comment(c);
 		} else {
 			++*c;
 		}

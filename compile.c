@@ -498,7 +498,7 @@ int main(int argc, char **argv){
 	current_scope = -1;
 	memset(local_variables, 0, sizeof(local_variables));
 	while(*current_source_file){
-		fp = fopen(*current_source_file, "r");
+		fp = fopen(*current_source_file, "rb");
 		if(!fp){
 			fprintf(stderr, "Could not open file '%s' for reading\n", *current_source_file);
 			free_global_variables();

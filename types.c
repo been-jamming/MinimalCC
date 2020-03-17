@@ -150,13 +150,13 @@ unsigned char parse_datatype(type *t, char **c){
 	}
 }
 
-unsigned char is_whitespace(char c){
-	return c == ' ' || c == '\t' || c == '\n';
+unsigned char is_whitespace(char *c){
+	return *c == ' ' || *c == '\t' || *c == '\n' || *c == '\r' || (*c == '/' && (c[1] == '/' || c[1] == '*'));
 }
 
 //Here we treat comments from "//..." and "/*...*/" as whitespace, skipping everything until the next newline character
 void skip_whitespace(char **c){
-	while(**c == ' ' || **c == '\t' || **c == '\n' || (**c == '/' && ((*c)[1] == '/' || (*c)[1] == '*'))){
+	while(**c == ' ' || **c == '\t' || **c == '\n' || **c == '\r' || (**c == '/' && ((*c)[1] == '/' || (*c)[1] == '*'))){
 		if(**c == '/' && (*c)[1] == '/'){
 			while(**c && **c != '\n'){
 				++*c;
