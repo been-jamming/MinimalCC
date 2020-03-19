@@ -122,7 +122,7 @@ void compile_function(char **c, char *identifier_name, char *arguments, unsigned
 		var->leave_as_address = 0;
 		strcpy(var->varname, identifier_name);
 		write_dictionary(&global_variables, var->varname, var, 0);
-		fprintf(output_file, ".data\n.align 2\n%s:\n.space %d\n.text\n", identifier_name, align4(type_size(&t)));
+		fprintf(output_file, ".data\n.align 2\n%s:\n.space %d\n.text\n", identifier_name, align4(type_size(&t, 0)));
 	} else {
 		if(!*identifier_name){
 			snprintf(error_message, sizeof(error_message), "Expected function name");

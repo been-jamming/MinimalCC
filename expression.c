@@ -20,9 +20,9 @@ void operation_none_func(char *reg_a, char *reg_b, value *value_a, value *value_
 }
 
 void operation_add_func(char *reg_a, char *reg_b, value *value_a, value *value_b, FILE *output_file, type *output_type){
-	type pointer_type;
-	value pointer_value;
+	value *pointer_value;
 	char *integer_reg;
+	unsigned int pointer_size;
 
 	if(peek_type(&(value_a->data_type)) == type_function || peek_type(&(value_b->data_type)) == type_function){
 		snprintf(error_message, sizeof(error_message), "Addition of function type is undefined");
@@ -36,11 +36,11 @@ void operation_add_func(char *reg_a, char *reg_b, value *value_a, value *value_b
 			*output_type = value_a->data_type;
 			return;
 		}
-		pointer_value = *value_a;
+		pointer_value = value_a;
 		integer_reg = reg_b;
 	} else {
 		if(peek_type(&(value_b->data_type)) == type_pointer){
-			pointer_value = *value_b;
+			pointer_value = value_b;
 			integer_reg = reg_a;
 		} else {
 			fprintf(output_file, "add %s, %s, %s\n", reg_a, reg_a, reg_b);
@@ -48,25 +48,25 @@ void operation_add_func(char *reg_a, char *reg_b, value *value_a, value *value_b
 			return;
 		}
 	}
-	pointer_type = pointer_value.data_type;
-	pop_type(&pointer_type);
-	if(type_size(&pointer_type) == 4){
+	pointer_size = type_size(&(pointer_value->data_type), 1);
+	if(pointer_size == 4){
 		fprintf(output_file, "sll %s, %s, 2\n", integer_reg, integer_reg);
-	} else if(type_size(&pointer_type) != 1){
-		fprintf(output_file, "li $t2, %d\n", type_size(&pointer_type));
+	} else if(pointer_size != 1){
+		fprintf(output_file, "li $t2, %d\n", pointer_size);
 		fprintf(output_file, "mult %s, $t2\n", integer_reg);
 		fprintf(output_file, "mflo %s\n", integer_reg);
 	}
 	fprintf(output_file, "add %s, %s, %s\n", reg_a, reg_a, reg_b);
 
-	*output_type = pointer_value.data_type;
+	*output_type = pointer_value->data_type;
 }
 
 void operation_subtract_func(char *reg_a, char *reg_b, value *value_a, value *value_b, FILE *output_file, type *output_type){
-	type pointer_type;
-	type pointer_type2;
-	value pointer_value;
+	type *pointer_type;
+	type *pointer_type2;
+	value *pointer_value;
 	char *integer_reg;
+	unsigned int pointer_size;
 
 	if(peek_type(&(value_a->data_type)) == type_function || peek_type(&(value_b->data_type)) == type_function){
 		snprintf(error_message, sizeof(error_message), "Subtraction of function type is undefined");
@@ -74,30 +74,28 @@ void operation_subtract_func(char *reg_a, char *reg_b, value *value_a, value *va
 	}
 	if(peek_type(&(value_a->data_type)) == type_pointer){
 		if(peek_type(&(value_b->data_type)) == type_pointer){
-			pointer_type = value_a->data_type;
-			pointer_type2 = value_b->data_type;
-			pop_type(&pointer_type);
-			pop_type(&pointer_type2);
-			if(!types_equal(&pointer_type, &pointer_type2)){
+			pointer_type = &(value_a->data_type);
+			pointer_type2 = &(value_b->data_type);
+			if(!types_equal(pointer_type, pointer_type2)){
 				snprintf(error_message, sizeof(error_message), "Cannot subtract pointers to different types");
 				do_error(1);
 			}
 			fprintf(output_file, "sub %s, %s, %s\n", reg_a, reg_a, reg_b);
-			if(type_size(&pointer_type) == 4){
+			if(type_size(pointer_type, 1) == 4){
 				fprintf(output_file, "sra %s, %s, 2\n", reg_a, reg_a);
-			} else if(type_size(&pointer_type) != 1){
-				fprintf(output_file, "li $t2, %d\n", type_size(&pointer_type));
+			} else if(type_size(pointer_type, 1) != 1){
+				fprintf(output_file, "li $t2, %d\n", type_size(pointer_type, 1));
 				fprintf(output_file, "div %s, $t2\n", reg_a);
 				fprintf(output_file, "mflo %s\n", reg_a);
 			}
 			*output_type = INT_TYPE;
 			return;
 		}
-		pointer_value = *value_a;
+		pointer_value = value_a;
 		integer_reg = reg_b;
 	} else {
 		if(peek_type(&(value_b->data_type)) == type_pointer){
-			pointer_value = *value_b;
+			pointer_value = value_b;
 			integer_reg = reg_a;
 		} else {
 			fprintf(output_file, "sub %s, %s, %s\n", reg_a, reg_a, reg_b);
@@ -105,18 +103,17 @@ void operation_subtract_func(char *reg_a, char *reg_b, value *value_a, value *va
 			return;
 		}
 	}
-	pointer_type = pointer_value.data_type;
-	pop_type(&pointer_type);
-	if(type_size(&pointer_type) == 4){
+	pointer_size = type_size(&(pointer_value->data_type), 1);
+	if(pointer_size == 4){
 		fprintf(output_file, "sll %s, %s, 2\n", integer_reg, integer_reg);
-	} else if(type_size(&pointer_type) != 1){
-		fprintf(output_file, "li $t2, %d\n", type_size(&pointer_type));
+	} else if(pointer_size != 1){
+		fprintf(output_file, "li $t2, %d\n", pointer_size);
 		fprintf(output_file, "mult %s, $t2\n", integer_reg);
 		fprintf(output_file, "mflo %s\n", integer_reg);
 	}
 	fprintf(output_file, "sub %s, %s, %s\n", reg_a, reg_a, reg_b);
 
-	*output_type = pointer_value.data_type;
+	*output_type = pointer_value->data_type;
 }
 
 void operation_multiply_func(char *reg_a, char *reg_b, value *value_a, value *value_b, FILE *output_file, type *output_type){
@@ -159,9 +156,9 @@ void operation_assign_func(char *reg_a, char *reg_b, value *value_a, value *valu
 		snprintf(error_message, sizeof(error_message), "Cannot assign to function");
 		do_error(1);
 	}
-	if(type_size(&(value_a->data_type)) == 4){
+	if(type_size(&(value_a->data_type), 0) == 4){
 		fprintf(output_file, "sw %s, 0(%s)\n", reg_b, reg_a);
-	} else if(type_size(&(value_a->data_type)) == 1){
+	} else if(type_size(&(value_a->data_type), 0) == 1){
 		fprintf(output_file, "sb %s, 0(%s)\n", reg_b, reg_a);
 	}
 	fprintf(output_file, "move %s, %s\n", reg_a, reg_b);
@@ -306,11 +303,12 @@ void operation_shift_right_func(char *reg_a, char *reg_b, value *value_a, value 
 
 void (*operation_functions[])(char *, char *, value *, value *, FILE *, type *) = {operation_none_func, operation_add_func, operation_subtract_func, operation_multiply_func, operation_divide_func, operation_assign_func, operation_less_than_func, operation_greater_than_func, operation_less_than_or_equal_func, operation_greater_than_or_equal_func, operation_equals_func, operation_not_equals_func, operation_and_func, operation_or_func, operation_modulo_func, operation_none_func, operation_none_func, operation_shift_left_func, operation_shift_right_func};
 
-int type_size(type *t){
+int type_size(type *t, unsigned int start_entry){
 	uint64_t d0;
 	uint64_t d1;
 	uint64_t d2;
 	unsigned int index;
+	unsigned int current_entry = 0;
 	int entry;
 	int output = 1;
 
@@ -329,27 +327,32 @@ int type_size(type *t){
 		if(d2&1){
 			entry |= 4;
 		}
-		switch(entry){
-			case type_void:
-				return output*VOID_SIZE;
-			case type_int:
-				return output*INT_SIZE;
-			case type_char:
-				return output*CHAR_SIZE;
-			case type_pointer:
-				return output*POINTER_SIZE;
-			case type_function:
-				return output*POINTER_SIZE;
-			case type_list:
-				index--;
-				output *= t->list_indicies[index];
-				break;
-			default:
-				return 0;
+		if(current_entry >= start_entry){
+			switch(entry){
+				case type_void:
+					return output*VOID_SIZE;
+				case type_int:
+					return output*INT_SIZE;
+				case type_char:
+					return output*CHAR_SIZE;
+				case type_pointer:
+					return output*POINTER_SIZE;
+				case type_function:
+					return output*POINTER_SIZE;
+				case type_list:
+					index--;
+					output *= t->list_indicies[index];
+					break;
+				default:
+					return 0;
+			}
+		} else if(entry == type_list){
+			index--;
 		}
 		d0 >>= 1;
 		d1 >>= 1;
 		d2 >>= 1;
+		current_entry++;
 	}
 }
 
@@ -401,7 +404,7 @@ void compile_variable_initializer(char **c){
 	var->varname = malloc(sizeof(char)*32);
 	var->var_type = vartype;
 	strcpy(var->varname, varname_buf);
-	variables_size += align4(type_size(&(var->var_type)));
+	variables_size += align4(type_size(&(var->var_type), 0));
 	var->stack_pos = variables_size - 4;
 	if(read_dictionary(*local_variables[current_scope], var->varname, 0)){
 		free(var->varname);
@@ -453,7 +456,7 @@ static void compile_local_variable(value *output, variable *var, unsigned char d
 			add_type_entry(&(output->data_type), type_pointer);
 		} else {
 			if(data.type == data_register){
-				switch(type_size(&data_type)){
+				switch(type_size(&data_type, 0)){
 					case 1:
 						fprintf(output_file, "lb $s%d, %d($sp)\n", data.reg, variables_size - var->stack_pos);
 						break;
@@ -463,7 +466,7 @@ static void compile_local_variable(value *output, variable *var, unsigned char d
 
 				}
 			} else if(data.type == data_stack){
-				switch(type_size(&data_type)){
+				switch(type_size(&data_type, 0)){
 					case 1:
 						fprintf(output_file, "lb $t0, %d($sp)\n", variables_size - var->stack_pos);
 						fprintf(output_file, "sb $t0, %d($sp)\n", -(int) data.stack_pos);
@@ -587,7 +590,7 @@ void cast(value *v, type t, unsigned char do_warn, FILE *output_file){
 		do_error(1);
 	}
 
-	if(type_size(&(v->data_type)) == 4 && type_size(&t) == 1){
+	if(type_size(&(v->data_type), 0) == 4 && type_size(&t, 0) == 1){
 		if(v->data.type == data_register){
 			fprintf(output_file, "sll $s%d, $s%d, 24\n", v->data.reg, v->data.reg);
 			fprintf(output_file, "sra $s%d, $s%d, 24\n", v->data.reg, v->data.reg);
@@ -597,7 +600,7 @@ void cast(value *v, type t, unsigned char do_warn, FILE *output_file){
 			fprintf(output_file, "sra $t0, $t0, 24\n");
 			fprintf(output_file, "sw $t0, %d($sp)\n", -(int) v->data.stack_pos);
 		}
-	} else if(type_size(&(v->data_type)) == 1 && type_size(&t) == 4){
+	} else if(type_size(&(v->data_type), 0) == 1 && type_size(&t, 0) == 4){
 		if(v->data.type == data_stack){
 			fprintf(output_file, "lb $t0, %d($sp)\n", -(int) v->data.stack_pos);
 			fprintf(output_file, "sw $t0, %d($sp)\n", -(int) v->data.stack_pos);
@@ -636,17 +639,17 @@ void compile_dereference(value *v, FILE *output_file){
 		add_type_entry(&data_type, type_pointer);
 	} else if(peek_type(&data_type) != type_function){
 		if(v->data.type == data_register){
-			if(type_size(&data_type) == 1){
+			if(type_size(&data_type, 0) == 1){
 				fprintf(output_file, "lb $s%d, 0($s%d)\n", v->data.reg, v->data.reg);
-			} else if(type_size(&data_type) == 4){
+			} else if(type_size(&data_type, 0) == 4){
 				fprintf(output_file, "lw $s%d, 0($s%d)\n", v->data.reg, v->data.reg);
 			}
 		} else if(v->data.type == data_stack){
 			fprintf(output_file, "lw $t0, %d($sp)\n", -(int) v->data.stack_pos);
-			if(type_size(&data_type) == 1){
+			if(type_size(&data_type, 0) == 1){
 				fprintf(output_file, "lb $t0, 0($t0)\n");
 				fprintf(output_file, "sb $t0, %d($sp)\n", -(int) v->data.stack_pos);
-			} else if(type_size(&data_type) == 4){
+			} else if(type_size(&data_type, 0) == 4){
 				fprintf(output_file, "lw $t0, 0($t0)\n");
 				fprintf(output_file, "sw $t0, %d($sp)\n", -(int) v->data.stack_pos);
 			}
@@ -750,19 +753,19 @@ void compile_list_index(char **c, value *address, unsigned char dereference, FIL
 	++*c;
 	cast(&index, INT_TYPE, 1, output_file);
 	if(index.data.type == data_register){
-		if(type_size(&address_type) == 4){
+		if(type_size(&address_type, 0) == 4){
 			fprintf(output_file, "sll $s%d, $s%d, 2\n", index.data.reg, index.data.reg);
-		} else if(type_size(&address_type) != 1){
-			fprintf(output_file, "li $t0, %d\n", (int) type_size(&address_type));
+		} else if(type_size(&address_type, 0) != 1){
+			fprintf(output_file, "li $t0, %d\n", (int) type_size(&address_type, 0));
 			fprintf(output_file, "mult $s%d, $t0\n", index.data.reg);
 			fprintf(output_file, "mflo $s%d\n", index.data.reg);
 		}
 		if(address->data.type == data_register){
 			fprintf(output_file, "add $s%d, $s%d, $s%d\n", address->data.reg, address->data.reg, index.data.reg);
 			if(dereference && peek_type(&address_type) != type_list){
-				if(type_size(&address_type) == 4){
+				if(type_size(&address_type, 0) == 4){
 					fprintf(output_file, "lw $s%d, 0($s%d)\n", address->data.reg, address->data.reg);
-				} else if(type_size(&address_type) == 1){
+				} else if(type_size(&address_type, 0) == 1){
 					fprintf(output_file, "lb $s%d, 0($s%d)\n", address->data.reg, address->data.reg);
 				} else {
 					snprintf(error_message, sizeof(error_message), "[INTERNAL] Unusable type size");
@@ -773,9 +776,9 @@ void compile_list_index(char **c, value *address, unsigned char dereference, FIL
 			fprintf(output_file, "lw $t0, %d($sp)\n", -(int) address->data.stack_pos);
 			fprintf(output_file, "add $t0, $t0, $s%d\n", index.data.reg);
 			if(dereference && peek_type(&address_type) != type_list){
-				if(type_size(&address_type) == 4){
+				if(type_size(&address_type, 0) == 4){
 					fprintf(output_file, "lw $t0, 0($t0)\n");
-				} else if(type_size(&address_type) == 1){
+				} else if(type_size(&address_type, 0) == 1){
 					fprintf(output_file, "lb $t0, 0($t0)\n");
 				} else {
 					snprintf(error_message, sizeof(error_message), "[INTERNAL] Unusable type size");
@@ -786,19 +789,19 @@ void compile_list_index(char **c, value *address, unsigned char dereference, FIL
 		}
 	} else if(index.data.type == data_stack){
 		fprintf(output_file, "lw $t1, %d($sp)\n", -(int) index.data.stack_pos);
-		if(type_size(&address_type) == 4){
+		if(type_size(&address_type, 0) == 4){
 			fprintf(output_file, "sll $t1, $t1, 2\n");
-		} else if(type_size(&address_type) != 1){
-			fprintf(output_file, "li $t0, %d\n", (int) type_size(&address_type));
+		} else if(type_size(&address_type, 0) != 1){
+			fprintf(output_file, "li $t0, %d\n", (int) type_size(&address_type, 0));
 			fprintf(output_file, "mult $t1, $t0\n");
 			fprintf(output_file, "mflo $t1\n");
 		}
 		if(address->data.type == data_register){
 			fprintf(output_file, "add $s%d, $s%d, $t1\n", address->data.reg, address->data.reg);
 			if(dereference && peek_type(&address_type) != type_list){
-				if(type_size(&address_type) == 4){
+				if(type_size(&address_type, 0) == 4){
 					fprintf(output_file, "lw $s%d, 0($s%d)\n", address->data.reg, address->data.reg);
-				} else if(type_size(&address_type) == 1){
+				} else if(type_size(&address_type, 0) == 1){
 					fprintf(output_file, "lb $s%d, 0($s%d)\n", address->data.reg, address->data.reg);
 				}
 			}
@@ -806,9 +809,9 @@ void compile_list_index(char **c, value *address, unsigned char dereference, FIL
 			fprintf(output_file, "lw $t0, %d($sp)\n", -(int) address->data.stack_pos);
 			fprintf(output_file, "add $t0, $t0, $t1\n");
 			if(dereference && peek_type(&address_type) != type_list){
-				if(type_size(&address_type) == 4){
+				if(type_size(&address_type, 0) == 4){
 					fprintf(output_file, "lw $t0, 0($t0)\n");
-				} else if(type_size(&address_type) == 1){
+				} else if(type_size(&address_type, 0) == 1){
 					fprintf(output_file, "lb $t0, 0($t0)\n");
 				}
 			}
@@ -1336,12 +1339,12 @@ void compile_operation(value *first_value, value *next_value, operation op, FILE
 		reg0_str = reg0_str_buffer;
 	} else if(first_value->data.type == data_stack){
 		reg0_str = "$t0";
-		if(type_size(&(first_value->data_type)) == 4){
+		if(type_size(&(first_value->data_type), 0) == 4){
 			fprintf(output_file, "lw $t0, %d($sp)\n", -(int) first_value->data.stack_pos);
-		} else if(type_size(&(first_value->data_type)) == 1){
+		} else if(type_size(&(first_value->data_type), 0) == 1){
 			fprintf(output_file, "lb $t0, %d($sp)\n", -(int) first_value->data.stack_pos);
 		} else {
-			snprintf(error_message, sizeof(error_message), "[INTERNAL] Unusable type size %d", type_size(&(first_value->data_type)));
+			snprintf(error_message, sizeof(error_message), "[INTERNAL] Unusable type size %d", type_size(&(first_value->data_type), 0));
 			do_error(1);
 		}
 	}
@@ -1350,24 +1353,24 @@ void compile_operation(value *first_value, value *next_value, operation op, FILE
 		reg1_str = reg1_str_buffer;
 	} else if(next_value->data.type == data_stack){
 		reg1_str = "$t1";
-		if(type_size(&(next_value->data_type)) == 4){
+		if(type_size(&(next_value->data_type), 0) == 4){
 			fprintf(output_file, "lw $t1, %d($sp)\n", -(int) next_value->data.stack_pos);
-		} else if(type_size(&(next_value->data_type)) == 1){
+		} else if(type_size(&(next_value->data_type), 0) == 1){
 			fprintf(output_file, "lb $t1, %d($sp)\n", -(int) next_value->data.stack_pos);
 		} else {
-			snprintf(error_message, sizeof(error_message), "[INTERNAL] Unusable type size %d", type_size(&(next_value->data_type)));
+			snprintf(error_message, sizeof(error_message), "[INTERNAL] Unusable type size %d", type_size(&(next_value->data_type), 0));
 			do_error(1);
 		}
 	}
 	operation_functions[op](reg0_str, reg1_str, first_value, next_value, output_file, &output_type);
 	deallocate(next_value->data);
 	if(first_value->data.type == data_stack){
-		if(type_size(&output_type) == 4){
+		if(type_size(&output_type, 0) == 4 || type_size(&output_type, 0) == 4){
 			fprintf(output_file, "sw $t0, %d($sp)\n", -(int) first_value->data.stack_pos);
-		} else if(type_size(&output_type) == 1){
-			fprintf(output_file, "sw $t0, %d($sp)\n", -(int) first_value->data.stack_pos);
+		} else if(type_size(&output_type, 0) == 1){
+			fprintf(output_file, "sb $t0, %d($sp)\n", -(int) first_value->data.stack_pos);
 		} else {
-			snprintf(error_message, sizeof(error_message), "[INTERNAL] Unusable type size %d", type_size(&output_type));
+			snprintf(error_message, sizeof(error_message), "[INTERNAL] Unusable type size %d", type_size(&output_type, 0));
 			do_error(1);
 		}
 	}
