@@ -257,6 +257,8 @@ void compile_statement(char **c, FILE *output_file){
 	value expression_output;
 	unsigned int label_num0;
 	unsigned int label_num1;
+	unsigned int label_num2;
+	unsigned int label_num3;
 
 	skip_whitespace(c);
 	if(!strncmp(*c, "if", 2) && !alphanumeric((*c)[2])){
@@ -328,6 +330,64 @@ void compile_statement(char **c, FILE *output_file){
 		compile_statement(c, output_file);
 		fprintf(output_file, "j __L%d\n", label_num0);
 		fprintf(output_file, "\n__L%d:\n", label_num1);
+	} else if(!strncmp(*c, "for", 3) && !alphanumeric((*c)[3])){
+		*c += 3;
+		skip_whitespace(c);
+		if(**c != '('){
+			snprintf(error_message, sizeof(error_message), "Expected '('");
+			do_error(1);
+		}
+		++*c;
+		label_num0 = num_labels;
+		label_num1 = num_labels + 1;
+		label_num2 = num_labels + 2;
+		label_num3 = num_labels + 3;
+		num_labels += 4;
+		skip_whitespace(c);
+		if(**c != ';'){
+			compile_expression(&expression_output, c, 1, 0, output_file);
+			deallocate(expression_output.data);
+			skip_whitespace(c);
+			if(**c != ';'){
+				snprintf(error_message, sizeof(error_message), "Expected ';'");
+				do_error(1);
+			}
+		}
+		++*c;
+		fprintf(output_file, "\n__L%d:\n", label_num0);
+		skip_whitespace(c);
+		if(**c != ';'){
+			compile_expression(&expression_output, c, 1, 0, output_file);
+			if(expression_output.data.type == data_register){
+				fprintf(output_file, "beq $s%d, $zero, __L%d\n", expression_output.data.reg, label_num1);
+			} else if(expression_output.data.type == data_stack){
+				fprintf(output_file, "lw $t0, %d($sp)\n", -(int) expression_output.data.stack_pos);
+				fprintf(output_file, "beq $t0, $zero, __L%d\n", label_num1);
+			}
+			deallocate(expression_output.data);
+			skip_whitespace(c);
+			if(**c != ';'){
+				snprintf(error_message, sizeof(error_message), "Expected ';'");
+				do_error(1);
+			}
+		}
+		++*c;
+		fprintf(output_file, "j __L%d\n\n__L%d:\n", label_num2, label_num3);
+		skip_whitespace(c);
+		if(**c != ')'){
+			compile_expression(&expression_output, c, 1, 0, output_file);
+			deallocate(expression_output.data);
+			skip_whitespace(c);
+			if(**c != ')'){
+				snprintf(error_message, sizeof(error_message), "Expected '('");
+				do_error(1);
+			}
+		}
+		++*c;
+		fprintf(output_file, "j __L%d\n\n__L%d:\n", label_num0, label_num2);
+		skip_whitespace(c);
+		compile_statement(c, output_file);
+		fprintf(output_file, "j __L%d\n\n__L%d:\n", label_num3, label_num1);
 	} else if(!strncmp(*c, "return", 6) && !alphanumeric((*c)[6])){
 		*c += 6;
 		skip_whitespace(c);
