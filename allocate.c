@@ -54,7 +54,7 @@ void deallocate(data_entry entry){
 }
 
 static void store_register(unsigned char reg, FILE *output_file){
-	fprintf(output_file, "sw $s%d, %d($sp)\n", (int) reg, -(int) stack_size);
+	fprintf(output_file, "\tmove.l d%d, %d(a7)\n", (int) reg, -(int) stack_size);
 	stack_size += 4;
 }
 
@@ -80,7 +80,7 @@ int get_reg_stack_pos(reg_list regs, unsigned char reg){
 
 static void load_register(unsigned char reg, FILE *output_file){
 	stack_size -= 4;
-	fprintf(output_file, "lw $s%d, %d($sp)\n", (int) reg, -(int) stack_size);
+	fprintf(output_file, "\tmove.l %d(a7), d%d\n", -(int) stack_size, (int) reg);
 }
 
 void pull_registers(reg_list regs, FILE *output_file){

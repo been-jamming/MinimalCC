@@ -5,7 +5,7 @@
 
 #define VOID_SIZE 1
 #define CHAR_SIZE 1
-#define INT_SIZE 4
+#define INT_SIZE 2
 #define POINTER_SIZE 4
 
 enum operation{

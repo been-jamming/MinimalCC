@@ -74,13 +74,13 @@ void compile_file(char *program, char *identifier_name, char *arguments, unsigne
 
 	program_pointer = program;
 	program_beginning = program;
-	fprintf(output_file, ".data\n");
+	fprintf(output_file, "*compiling %s\n*string constants\n", *current_source_file);
 	current_line = 1;
 	skip_whitespace(&program_pointer);
 	current_line_temp = current_line;
 	compile_string_constants(program_pointer, output_file);
 	current_line = current_line_temp;
-	fprintf(output_file, ".text\n\n");
+	fprintf(output_file, "*assembly\n\n");
 	while(*program_pointer){
 		compile_function(&program_pointer, identifier_name, arguments, identifier_length, num_arguments, output_file);
 		free_local_variables();
@@ -122,7 +122,7 @@ void compile_function(char **c, char *identifier_name, char *arguments, unsigned
 		var->leave_as_address = 0;
 		strcpy(var->varname, identifier_name);
 		write_dictionary(&global_variables, var->varname, var, 0);
-		fprintf(output_file, ".data\n.align 2\n%s:\n.space %d\n.text\n", identifier_name, align4(type_size(&t, 0)));
+		fprintf(output_file, "%s\n\tSPACE %d\n", identifier_name, align4(type_size(&t, 0)));
 	} else {
 		if(!*identifier_name){
 			snprintf(error_message, sizeof(error_message), "Expected function name");
@@ -153,7 +153,7 @@ void compile_function(char **c, char *identifier_name, char *arguments, unsigned
 		++*c;
 		local_variables[0] = malloc(sizeof(dictionary));
 		*local_variables[0] = create_dictionary(NULL);
-		fprintf(output_file, "\n.globl %s\n%s:\n", identifier_name, identifier_name);
+		fprintf(output_file, "\n%s\n", identifier_name);
 		pop_type(&t);
 		while(peek_type(&t) != type_returns){
 			if(current_argument >= num_arguments){
@@ -185,8 +185,8 @@ void compile_function(char **c, char *identifier_name, char *arguments, unsigned
 		compile_block(c, 1, output_file);
 		++*c;
 		var->num_args = num_vars;
-		fprintf(output_file, "lw $ra, 0($sp)\n");
-		fprintf(output_file, "jr $ra\n");
+		fprintf(output_file, "\tmove.l 0(sp), a0\n");
+		fprintf(output_file, "\tjmp (a0)\n");
 	}
 }
 
@@ -228,9 +228,9 @@ void compile_block(char **c, unsigned char function_beginning, FILE *output_file
 
 	if(new_scope){
 		if(function_beginning){
-			fprintf(output_file, "addi $sp, $sp, %d\n", -(int) variables_size - 8);
+			fprintf(output_file, "\taddi.l #%d, sp\n", -(int) variables_size - 8);
 		} else {
-			fprintf(output_file, "addi $sp, $sp, %d\n", -(int) variables_size + variables_size_before);
+			fprintf(output_file, "\taddi.l #%d, sp\n", -(int) variables_size + variables_size_before);
 		}
 	}
 
@@ -241,9 +241,9 @@ void compile_block(char **c, unsigned char function_beginning, FILE *output_file
 
 	if(new_scope){
 		if(function_beginning){
-			fprintf(output_file, "addi $sp, $sp, %d\n", variables_size + 8);
+			fprintf(output_file, "\taddi.l #%d, sp\n", variables_size + 8);
 		} else {
-			fprintf(output_file, "addi $sp, $sp, %d\n", variables_size - variables_size_before);
+			fprintf(output_file, "\taddi.l #%d, sp\n", variables_size - variables_size_before);
 		}
 		free_dictionary(*local_variables[current_scope], free_var);
 		free(local_variables[current_scope]);
@@ -273,10 +273,11 @@ void compile_statement(char **c, FILE *output_file){
 		label_num0 = num_labels;
 		num_labels++;
 		if(expression_output.data.type == data_register){
-			fprintf(output_file, "beq $s%d, $zero, __L%d\n", expression_output.data.reg, label_num0);
+			fprintf(output_file, "\ttst.w d%d\n", expression_output.data.reg);
+			fprintf(output_file, "\tbeq __L%d\n", label_num0);
 		} else if(expression_output.data.type == data_stack){
-			fprintf(output_file, "lw $t0, %d($sp)\n", -(int) expression_output.data.stack_pos);
-			fprintf(output_file, "beq $t0, $zero, __L%d\n", label_num0);
+			fprintf(output_file, "\ttst.w %d(sp)\n", -(int) expression_output.data.stack_pos);
+			fprintf(output_file, "\tbeq __L%d\n", label_num0);
 		}
 		deallocate(expression_output.data);
 		skip_whitespace(c);
@@ -292,13 +293,13 @@ void compile_statement(char **c, FILE *output_file){
 			*c += 4;
 			label_num1 = num_labels;
 			num_labels++;
-			fprintf(output_file, "j __L%d\n", label_num1);
-			fprintf(output_file, "\n__L%d:\n", label_num0);
+			fprintf(output_file, "\tjmp __L%d\n", label_num1);
+			fprintf(output_file, "\n__L%d\n", label_num0);
 			skip_whitespace(c);
 			compile_statement(c, output_file);
-			fprintf(output_file, "\n__L%d:\n", label_num1);
+			fprintf(output_file, "\n__L%d\n", label_num1);
 		} else {
-			fprintf(output_file, "\n__L%d:\n", label_num0);
+			fprintf(output_file, "\n__L%d\n", label_num0);
 		}
 	} else if(!strncmp(*c, "while", 5) && !alphanumeric((*c)[5])){
 		*c += 5;
@@ -311,13 +312,14 @@ void compile_statement(char **c, FILE *output_file){
 		label_num0 = num_labels;
 		label_num1 = num_labels + 1;
 		num_labels += 2;
-		fprintf(output_file, "\n__L%d:\n", label_num0);
+		fprintf(output_file, "\n__L%d\n", label_num0);
 		compile_expression(&expression_output, c, 1, 0, output_file);
 		if(expression_output.data.type == data_register){
-			fprintf(output_file, "beq $s%d, $zero, __L%d\n", expression_output.data.reg, label_num1);
+			fprintf(output_file, "\ttst.w d%d\n", expression_output.data.reg);
+			fprintf(output_file, "\tbeq __L%d\n", label_num1);
 		} else if(expression_output.data.type == data_stack){
-			fprintf(output_file, "lw $t0, %d($sp)\n", -(int) expression_output.data.stack_pos);
-			fprintf(output_file, "beq $t0, $zero, __L%d\n", label_num1);
+			fprintf(output_file, "\ttst.w %d(sp)\n", -(int) expression_output.data.stack_pos);
+			fprintf(output_file, "\tbeq __L%d\n", label_num1);
 		}
 		deallocate(expression_output.data);
 		skip_whitespace(c);
@@ -328,8 +330,8 @@ void compile_statement(char **c, FILE *output_file){
 		++*c;
 		skip_whitespace(c);
 		compile_statement(c, output_file);
-		fprintf(output_file, "j __L%d\n", label_num0);
-		fprintf(output_file, "\n__L%d:\n", label_num1);
+		fprintf(output_file, "\tjmp __L%d\n", label_num0);
+		fprintf(output_file, "\n__L%d\n", label_num1);
 	} else if(!strncmp(*c, "for", 3) && !alphanumeric((*c)[3])){
 		*c += 3;
 		skip_whitespace(c);
@@ -354,15 +356,16 @@ void compile_statement(char **c, FILE *output_file){
 			}
 		}
 		++*c;
-		fprintf(output_file, "\n__L%d:\n", label_num0);
+		fprintf(output_file, "\n__L%d\n", label_num0);
 		skip_whitespace(c);
 		if(**c != ';'){
 			compile_expression(&expression_output, c, 1, 0, output_file);
 			if(expression_output.data.type == data_register){
-				fprintf(output_file, "beq $s%d, $zero, __L%d\n", expression_output.data.reg, label_num1);
+				fprintf(output_file, "\ttst.w d%d\n", expression_output.data.reg);
+				fprintf(output_file, "\tbeq __L%d\n", label_num1);
 			} else if(expression_output.data.type == data_stack){
-				fprintf(output_file, "lw $t0, %d($sp)\n", -(int) expression_output.data.stack_pos);
-				fprintf(output_file, "beq $t0, $zero, __L%d\n", label_num1);
+				fprintf(output_file, "\ttst.w %d(sp)\n", -(int) expression_output.data.stack_pos);
+				fprintf(output_file, "\tbeq __L%d\n", label_num1);
 			}
 			deallocate(expression_output.data);
 			skip_whitespace(c);
@@ -372,7 +375,7 @@ void compile_statement(char **c, FILE *output_file){
 			}
 		}
 		++*c;
-		fprintf(output_file, "j __L%d\n\n__L%d:\n", label_num2, label_num3);
+		fprintf(output_file, "\tjmp __L%d\n\n__L%d\n", label_num2, label_num3);
 		skip_whitespace(c);
 		if(**c != ')'){
 			compile_expression(&expression_output, c, 1, 0, output_file);
@@ -384,10 +387,10 @@ void compile_statement(char **c, FILE *output_file){
 			}
 		}
 		++*c;
-		fprintf(output_file, "j __L%d\n\n__L%d:\n", label_num0, label_num2);
+		fprintf(output_file, "\tjmp __L%d\n\n__L%d\n", label_num0, label_num2);
 		skip_whitespace(c);
 		compile_statement(c, output_file);
-		fprintf(output_file, "j __L%d\n\n__L%d:\n", label_num3, label_num1);
+		fprintf(output_file, "\tjmp __L%d\n\n__L%d\n", label_num3, label_num1);
 	} else if(!strncmp(*c, "return", 6) && !alphanumeric((*c)[6])){
 		*c += 6;
 		skip_whitespace(c);
@@ -406,16 +409,15 @@ void compile_statement(char **c, FILE *output_file){
 			++*c;
 			cast(&expression_output, return_type, 1, output_file);
 			if(expression_output.data.type == data_register){
-				fprintf(output_file, "sw $s%d, %d($sp)\n", expression_output.data.reg, variables_size + 4);
+				fprintf(output_file, "\tmove.l d%d, %d(sp)\n", expression_output.data.reg, variables_size + 4);
 			} else if(expression_output.data.type == data_stack){
-				fprintf(output_file, "lw $t0, %d($sp)\n", -(int) expression_output.data.stack_pos);
-				fprintf(output_file, "sw $t0, %d($sp)\n", variables_size + 4);
+				fprintf(output_file, "\tmove.l %d(sp), %d(sp)\n", -(int) expression_output.data.reg, variables_size + 4);
 			}
 			deallocate(expression_output.data);
 		}
-		fprintf(output_file, "addi $sp, $sp, %d\n", variables_size + 8);
-		fprintf(output_file, "lw $ra, 0($sp)\n");
-		fprintf(output_file, "jr $ra\n");
+		fprintf(output_file, "\taddi.l #%d, sp\n", variables_size + 8);
+		fprintf(output_file, "\tmove.l (sp), a0\n");
+		fprintf(output_file, "\tjmp (a0)\n");
 	} else if(**c == ';'){
 		//Empty statement, so pass
 		++*c;
@@ -484,10 +486,10 @@ void compile_string_constants(char *c, FILE *output_file){
 			c++;
 		} else {
 			c++;
-			fprintf(output_file, "__str%d:\n", num_strs);
-			fprintf(output_file, ".asciiz \"");
+			fprintf(output_file, "__str%d\n", num_strs);
+			fprintf(output_file, "\tDC.C B \"");
 			place_string_constant(&c, output_file);
-			fprintf(output_file, "\n");
+			fprintf(output_file, ",0\n");
 			num_strs++;
 		}
 	}
