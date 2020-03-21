@@ -2,7 +2,7 @@
 
 #define ALLOCATE_INCLUDED
 #define REGISTER_SIZE 4
-#define NUM_REGISTERS 8
+#define NUM_REGISTERS 6
 
 typedef enum{
 	data_register,

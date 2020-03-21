@@ -122,7 +122,7 @@ void compile_function(char **c, char *identifier_name, char *arguments, unsigned
 		var->leave_as_address = 0;
 		strcpy(var->varname, identifier_name);
 		write_dictionary(&global_variables, var->varname, var, 0);
-		fprintf(output_file, "%s\n\tSPACE %d\n", identifier_name, align4(type_size(&t, 0)));
+		fprintf(output_file, "%s\n\tDS.W %d\n", identifier_name, align4(type_size(&t, 0)));
 	} else {
 		if(!*identifier_name){
 			snprintf(error_message, sizeof(error_message), "Expected function name");
@@ -228,9 +228,9 @@ void compile_block(char **c, unsigned char function_beginning, FILE *output_file
 
 	if(new_scope){
 		if(function_beginning){
-			fprintf(output_file, "\taddi.l #%d, sp\n", -(int) variables_size - 8);
+			fprintf(output_file, "\tadda.l #%d, sp\n", -(int) variables_size - 8);
 		} else {
-			fprintf(output_file, "\taddi.l #%d, sp\n", -(int) variables_size + variables_size_before);
+			fprintf(output_file, "\tadda.l #%d, sp\n", -(int) variables_size + variables_size_before);
 		}
 	}
 
@@ -241,9 +241,9 @@ void compile_block(char **c, unsigned char function_beginning, FILE *output_file
 
 	if(new_scope){
 		if(function_beginning){
-			fprintf(output_file, "\taddi.l #%d, sp\n", variables_size + 8);
+			fprintf(output_file, "\tadda.l #%d, sp\n", variables_size + 8);
 		} else {
-			fprintf(output_file, "\taddi.l #%d, sp\n", variables_size - variables_size_before);
+			fprintf(output_file, "\tadda.l #%d, sp\n", variables_size - variables_size_before);
 		}
 		free_dictionary(*local_variables[current_scope], free_var);
 		free(local_variables[current_scope]);
@@ -270,6 +270,7 @@ void compile_statement(char **c, FILE *output_file){
 		}
 		++*c;
 		compile_expression(&expression_output, c, 1, 0, output_file);
+		cast(&expression_output, INT_TYPE, 1, output_file);
 		label_num0 = num_labels;
 		num_labels++;
 		if(expression_output.data.type == data_register){
@@ -314,6 +315,7 @@ void compile_statement(char **c, FILE *output_file){
 		num_labels += 2;
 		fprintf(output_file, "\n__L%d\n", label_num0);
 		compile_expression(&expression_output, c, 1, 0, output_file);
+		cast(&expression_output, INT_TYPE, 1, output_file);
 		if(expression_output.data.type == data_register){
 			fprintf(output_file, "\ttst.w d%d\n", expression_output.data.reg);
 			fprintf(output_file, "\tbeq __L%d\n", label_num1);
@@ -360,6 +362,7 @@ void compile_statement(char **c, FILE *output_file){
 		skip_whitespace(c);
 		if(**c != ';'){
 			compile_expression(&expression_output, c, 1, 0, output_file);
+			cast(&expression_output, INT_TYPE, 1, output_file);
 			if(expression_output.data.type == data_register){
 				fprintf(output_file, "\ttst.w d%d\n", expression_output.data.reg);
 				fprintf(output_file, "\tbeq __L%d\n", label_num1);
@@ -415,7 +418,7 @@ void compile_statement(char **c, FILE *output_file){
 			}
 			deallocate(expression_output.data);
 		}
-		fprintf(output_file, "\taddi.l #%d, sp\n", variables_size + 8);
+		fprintf(output_file, "\tadda.l #%d, sp\n", variables_size + 8);
 		fprintf(output_file, "\tmove.l (sp), a0\n");
 		fprintf(output_file, "\tjmp (a0)\n");
 	} else if(**c == ';'){
@@ -467,7 +470,7 @@ void place_string_constant(char **c, FILE *output_file){
 		snprintf(error_message, sizeof(error_message), "Expected closing '\"'");
 		do_error(1);
 	}
-	fprintf(output_file, "\"");
+	fprintf(output_file, "\'");
 	++*c;
 }
 
@@ -487,7 +490,7 @@ void compile_string_constants(char *c, FILE *output_file){
 		} else {
 			c++;
 			fprintf(output_file, "__str%d\n", num_strs);
-			fprintf(output_file, "\tDC.C B \"");
+			fprintf(output_file, "\tDC.B \'");
 			place_string_constant(&c, output_file);
 			fprintf(output_file, ",0\n");
 			num_strs++;
