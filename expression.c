@@ -1041,7 +1041,7 @@ void compile_not(value *v, FILE *output_file){
 		do_error(1);
 	}
 	if(v->data.type == data_register){
-		fprintf(output_file, "seq $s%d, $s%d, $s%d\n", v->data.reg, v->data.reg, v->data.reg);
+		fprintf(output_file, "nor $s%d, $s%d, $s%d\n", v->data.reg, v->data.reg, v->data.reg);
 	} else if(v->data.type == data_stack){
 		fprintf(output_file, "lw $t0, %d($sp)\n", -(int) v->data.stack_pos);
 		fprintf(output_file, "nor $t0, $t0, $t0\n");
@@ -1365,7 +1365,7 @@ void compile_operation(value *first_value, value *next_value, operation op, FILE
 	operation_functions[op](reg0_str, reg1_str, first_value, next_value, output_file, &output_type);
 	deallocate(next_value->data);
 	if(first_value->data.type == data_stack){
-		if(type_size(&output_type, 0) == 4 || type_size(&output_type, 0) == 4){
+		if(type_size(&output_type, 0) == 4){
 			fprintf(output_file, "sw $t0, %d($sp)\n", -(int) first_value->data.stack_pos);
 		} else if(type_size(&output_type, 0) == 1){
 			fprintf(output_file, "sb $t0, %d($sp)\n", -(int) first_value->data.stack_pos);
