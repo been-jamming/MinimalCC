@@ -270,6 +270,7 @@ void compile_statement(char **c, FILE *output_file){
 		}
 		++*c;
 		compile_expression(&expression_output, c, 1, 0, output_file);
+		cast(&expression_output, INT_TYPE, 0, output_file);
 		label_num0 = num_labels;
 		num_labels++;
 		if(expression_output.data.type == data_register){
@@ -313,6 +314,7 @@ void compile_statement(char **c, FILE *output_file){
 		num_labels += 2;
 		fprintf(output_file, "\n__L%d:\n", label_num0);
 		compile_expression(&expression_output, c, 1, 0, output_file);
+		cast(&expression_output, INT_TYPE, 0, output_file);
 		if(expression_output.data.type == data_register){
 			fprintf(output_file, "beq $s%d, $zero, __L%d\n", expression_output.data.reg, label_num1);
 		} else if(expression_output.data.type == data_stack){
@@ -358,6 +360,7 @@ void compile_statement(char **c, FILE *output_file){
 		skip_whitespace(c);
 		if(**c != ';'){
 			compile_expression(&expression_output, c, 1, 0, output_file);
+			cast(&expression_output, INT_TYPE, 0, output_file);
 			if(expression_output.data.type == data_register){
 				fprintf(output_file, "beq $s%d, $zero, __L%d\n", expression_output.data.reg, label_num1);
 			} else if(expression_output.data.type == data_stack){
