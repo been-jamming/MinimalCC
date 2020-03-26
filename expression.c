@@ -450,7 +450,7 @@ void compile_integer(value *output, char **c, unsigned char dereference, unsigne
 	if(output->data.type == data_register){
 		fprintf(output_file, "\tmove.l #%d, d%d\n", int_value, (int) output->data.reg);
 	} else if(output->data.type == data_stack){
-		fprintf(output_file, "\tmove.l #%d, %d(sp)\n", int_value, -(int) output->data.stack_pos);
+		fprintf(output_file, "\tmove.w #%d, %d(sp)\n", int_value, -(int) output->data.stack_pos);
 	}
 	output->data_type = INT_TYPE;
 	output->is_reference = 0;
@@ -497,12 +497,9 @@ static void compile_local_variable(value *output, variable *var, unsigned char d
 				switch(type_size(&data_type, 0)){
 					case 1:
 						fprintf(output_file, "\tmove.b %d(sp), %d(sp)\n", variables_size - var->stack_pos, -(int) data.stack_pos);
-						fprintf(output_file, "\text.w %d(sp)\n", -(int) data.stack_pos);
-						fprintf(output_file, "\text.l %d(sp)\n", -(int) data.stack_pos);
 						break;
 					case 2:
 						fprintf(output_file, "\tmove.w %d(sp), %d(sp)\n", variables_size - var->stack_pos, -(int) data.stack_pos);
-						fprintf(output_file, "\text.l %d(sp)\n", -(int) data.stack_pos);
 						break;
 					case 4:
 						fprintf(output_file, "\tmove.l %d(sp), %d(sp)\n", variables_size - var->stack_pos, -(int) data.stack_pos);
@@ -615,24 +612,45 @@ void cast(value *v, type t, unsigned char do_warn, FILE *output_file){
 		do_error(1);
 	}
 
-	if(type_size(&(v->data_type), 0) != type_size(&t, 0)){
+	if(v->data.type == data_register){
 		if(type_size(&(v->data_type), 0) == 1){
-			if(v->data.type == data_register){
+			if(type_size(&t, 0) == 2){
+				fprintf(output_file, "\text.w d%d\n", v->data.reg);
+			} else if(type_size(&t, 0) == 4){
 				fprintf(output_file, "\text.w d%d\n", v->data.reg);
 				fprintf(output_file, "\text.l d%d\n", v->data.reg);
-			} else if(v->data.type == data_stack){
+			}
+		} else if(type_size(&(v->data_type), 0) == 2 && type_size(&t, 0) == 4){
+			fprintf(output_file, "\text.l d%d\n", v->data.reg);
+		}
+	} else if(v->data.type == data_stack){
+		if(type_size(&(v->data_type), 0) == 1){
+			if(type_size(&t, 0) == 2){
+				fprintf(output_file, "\tmove.b %d(sp), d7\n", -(int) v->data.stack_pos);
+				fprintf(output_file, "\text.w d7\n");
+				fprintf(output_file, "\tmove.w d7, %d(sp)\n", -(int) v->data.stack_pos);
+			} else if(type_size(&t, 0) == 4){
 				fprintf(output_file, "\tmove.b %d(sp), d7\n", -(int) v->data.stack_pos);
 				fprintf(output_file, "\text.w d7\n");
 				fprintf(output_file, "\text.l d7\n");
 				fprintf(output_file, "\tmove.l d7, %d(sp)\n", -(int) v->data.stack_pos);
 			}
 		} else if(type_size(&(v->data_type), 0) == 2){
-			if(v->data.type == data_register){
-				fprintf(output_file, "\text.l d%d\n", v->data.reg);
-			} else if(v->data.type == data_stack){
+			if(type_size(&t, 0) == 1){
+				fprintf(output_file, "\tmove.w %d(sp), d7\n", -(int) v->data.stack_pos);
+				fprintf(output_file, "\tmove.b d7, %d(sp)\n", -(int) v->data.stack_pos);
+			} else if(type_size(&t, 0) == 4){
 				fprintf(output_file, "\tmove.w %d(sp), d7\n", -(int) v->data.stack_pos);
 				fprintf(output_file, "\text.l d7\n");
 				fprintf(output_file, "\tmove.l d7, %d(sp)\n", -(int) v->data.stack_pos);
+			}
+		} else if(type_size(&(v->data_type), 0) == 4){
+			if(type_size(&t, 0) == 1){
+				fprintf(output_file, "\tmove.l %d(sp), d7\n", -(int) v->data.stack_pos);
+				fprintf(output_file, "\tmove.b d7, %d(sp)\n", -(int) v->data.stack_pos);
+			} else if(type_size(&t, 0) == 2){
+				fprintf(output_file, "\tmove.l %d(sp), d7\n", -(int) v->data.stack_pos);
+				fprintf(output_file, "\tmove.w d7, %d(sp)\n", -(int) v->data.stack_pos);
 			}
 		}
 	}
@@ -761,7 +779,13 @@ void compile_function_call(char **c, value *func, FILE *output_file){
 	}
 	fprintf(output_file, "__L%d\n", label_num);
 	fprintf(output_file, "\tadda.l #%d, sp\n", (int) stack_size_before);
-	fprintf(output_file, "\tmove.l %d(sp), d7\n", -(int) return_data.stack_pos);
+	if(func->data.type == data_stack || type_size(&(func->data_type), 0) == 4){
+		fprintf(output_file, "\tmove.l %d(sp), d7\n", -(int) return_data.stack_pos);
+	} else if(type_size(&(func->data_type), 0) == 1){
+		fprintf(output_file, "\tmove.b %d(sp), d7\n", -(int) return_data.stack_pos);
+	} else if(type_size(&(func->data_type), 0) == 2){
+		fprintf(output_file, "\tmove.w %d(sp), d7\n", -(int) return_data.stack_pos);
+	}
 	deallocate(return_data);
 	deallocate(return_address_data);
 	pull_registers(reg_state, output_file);
@@ -789,6 +813,7 @@ void compile_list_index(char **c, value *address, unsigned char dereference, FIL
 	}
 	++*c;
 	cast(&index, INT_TYPE, 1, output_file);
+	fprintf(output_file, "*Compiled cast\n");
 	if(index.data.type == data_register){
 		if(type_size(&address_type, 0) == 4){
 			fprintf(output_file, "\tlsl.l #2, d%d\n", index.data.reg);
@@ -811,6 +836,7 @@ void compile_list_index(char **c, value *address, unsigned char dereference, FIL
 					fprintf(output_file, "\tmove.l d%d, a0\n", address->data.reg);
 					fprintf(output_file, "\tmove.b (a0), d%d\n", address->data.reg);
 					fprintf(output_file, "\text.w d%d\n", address->data.reg);
+					fprintf(output_file, "\text.l d%d\n", address->data.reg);
 				} else {
 					snprintf(error_message, sizeof(error_message), "[INTERNAL] Unusable type size");
 					do_error(1);
@@ -821,13 +847,11 @@ void compile_list_index(char **c, value *address, unsigned char dereference, FIL
 				fprintf(output_file, "\tmove.l %d(sp), a0\n", -(int) address->data.stack_pos);
 				fprintf(output_file, "\tadd.l d%d, a0\n", index.data.reg);
 				if(type_size(&address_type, 0) == 4){
-					fprintf(output_file, "\tmove.l (a0), d7\n");
+					fprintf(output_file, "\tmove.l (a0), %d(sp)\n", -(int) address->data.stack_pos);
 				} else if(type_size(&address_type, 0) == 2){
-					fprintf(output_file, "\tmove.w (a0), d7\n");
-					fprintf(output_file, "\text.l d7\n");
+					fprintf(output_file, "\tmove.w (a0), %d(sp)\n", -(int) address->data.stack_pos);
 				} else if(type_size(&address_type, 0) == 1){
-					fprintf(output_file, "\tmove.b (a0), d7\n");
-					fprintf(output_file, "\text.w d7\n");
+					fprintf(output_file, "\tmove.b (a0), %d(sp)\n", -(int) address->data.stack_pos);
 				} else {
 					snprintf(error_message, sizeof(error_message), "[INTERNAL] Unusable type size");
 					do_error(1);
@@ -835,21 +859,21 @@ void compile_list_index(char **c, value *address, unsigned char dereference, FIL
 			} else {
 				fprintf(output_file, "\tmove.l %d(sp), d7\n", -(int) address->data.stack_pos);
 				fprintf(output_file, "\tadd.l d%d, d7\n", index.data.reg);
+				fprintf(output_file, "\tmove.l d7, %d(sp)\n", -(int) address->data.stack_pos);
 			}
-			fprintf(output_file, "\tmove.l d7, %d(sp)\n", -(int) address->data.stack_pos);
 		}
 	} else if(index.data.type == data_stack){
-		fprintf(output_file, "\tmove.w %d(sp), d7\n", -(int) index.data.stack_pos);
-		fprintf(output_file, "\text.l d7\n");
+		fprintf(output_file, "\tmove.w %d(sp), d6\n", -(int) index.data.stack_pos);
+		fprintf(output_file, "\text.l d6\n");
 		if(type_size(&address_type, 0) == 4){
-			fprintf(output_file, "\tlsl.l #2, d7\n");
+			fprintf(output_file, "\tlsl.l #2, d6\n");
 		} else if(type_size(&address_type, 0) == 2){
-			fprintf(output_file, "\tlsl.l #1, d7\n");
+			fprintf(output_file, "\tlsl.l #1, d6\n");
 		} else if(type_size(&address_type, 0) != 1){
-			fprintf(output_file, "\tmuls.w #%d, d7\n", (int) type_size(&address_type, 0));
+			fprintf(output_file, "\tmuls.w #%d, d6\n", (int) type_size(&address_type, 0));
 		}
 		if(address->data.type == data_register){
-			fprintf(output_file, "\tadd.l d7, d%d\n", address->data.reg);
+			fprintf(output_file, "\tadd.l d6, d%d\n", address->data.reg);
 			if(dereference && peek_type(&address_type) != type_list){
 				if(type_size(&address_type, 0) == 4){
 					fprintf(output_file, "\tmove.l d%d, a0\n", address->data.reg);
@@ -862,24 +886,25 @@ void compile_list_index(char **c, value *address, unsigned char dereference, FIL
 					fprintf(output_file, "\tmove.l d%d, a0\n", address->data.reg);
 					fprintf(output_file, "\tmove.b (a0), d%d\n", address->data.reg);
 					fprintf(output_file, "\text.w d%d\n", address->data.reg);
+					fprintf(output_file, "\text.l d%d\n", address->data.reg);
 				}
 			}
 		} else if(address->data.type == data_stack){
 			if(dereference && peek_type(&address_type) != type_list){
 				fprintf(output_file, "\tmove.l %d(sp), a0\n", -(int) address->data.stack_pos);
+				fprintf(output_file, "\tadd.l d6, a0\n");
 				if(type_size(&address_type, 0) == 4){
-					fprintf(output_file, "\tmove.l (a0), d7\n");
+					fprintf(output_file, "\tmove.l (a0), %d(sp)\n", -(int) address->data.stack_pos);
 				} else if(type_size(&address_type, 0) == 2){
-					fprintf(output_file, "\tmove.w (a0), d7\n");
-					fprintf(output_file, "\text.l d7\n");
+					fprintf(output_file, "\tmove.w (a0), %d(sp)\n", -(int) address->data.stack_pos);
 				} else if(type_size(&address_type, 0) == 1){
-					fprintf(output_file, "\tmove.b (a0), d7\n");
-					fprintf(output_file, "\text.w d7\n");
+					fprintf(output_file, "\tmove.b (a0), %d(sp)\n", -(int) address->data.stack_pos);
 				}
 			} else {
 				fprintf(output_file, "\tmove.l %d(sp), d7\n", -(int) address->data.stack_pos);
+				fprintf(output_file, "\tadd.l d6, d7\n");
+				fprintf(output_file, "\tmove.l d7, %d(sp)\n", -(int) address->data.stack_pos);
 			}
-			fprintf(output_file, "\tmove.l d7, %d(sp)\n", -(int) address->data.stack_pos);
 		}
 	}
 	deallocate(index.data);
@@ -1081,7 +1106,7 @@ void compile_character(value *output, char **c, unsigned char dereference, unsig
 	if(output->data.type == data_register){
 		fprintf(output_file, "\tmove.l #%d, d%d\n", char_constant, output->data.reg);
 	} else if(output->data.type == data_stack){
-		fprintf(output_file, "\tmove.l #%d, %d(sp)\n", char_constant, -(int) output->data.stack_pos);
+		fprintf(output_file, "\tmove.w #%d, %d(sp)\n", char_constant, -(int) output->data.stack_pos);
 	}
 	output->data_type = INT_TYPE;
 	output->is_reference = 0;
@@ -1089,15 +1114,39 @@ void compile_character(value *output, char **c, unsigned char dereference, unsig
 
 void compile_logical_not(value *v, FILE *output_file){
 	if(v->data.type == data_register){
-		fprintf(output_file, "\ttst.l d%d\n", v->data.reg);
-		fprintf(output_file, "\tseq.b d%d\n", v->data.reg);
-		fprintf(output_file, "\tandi.b #1, d%d\n", v->data.reg);
+		if(type_size(&(v->data_type), 0) == 1){
+			fprintf(output_file, "\ttst.b d%d\n", v->data.reg);
+			fprintf(output_file, "\tseq.b d%d\n", v->data.reg);
+			fprintf(output_file, "\tandi.w #1, d%d\n", v->data.reg);
+		} else if(type_size(&(v->data_type), 0) == 2){
+			fprintf(output_file, "\ttst.w d%d\n", v->data.reg);
+			fprintf(output_file, "\tseq.b d%d\n", v->data.reg);
+			fprintf(output_file, "\tandi.w #1, d%d\n", v->data.reg);
+		} else if(type_size(&(v->data_type), 0) == 4){
+			fprintf(output_file, "\ttst.l d%d\n", v->data.reg);
+			fprintf(output_file, "\tseq.b d%d\n", v->data.reg);
+			fprintf(output_file, "\tandi.w #1, d%d\n", v->data.reg);
+		}
 	} else if(v->data.type == data_stack){
-		fprintf(output_file, "\tmove.l %d(sp), d7\n", -(int) v->data.stack_pos);
-		fprintf(output_file, "\ttst.l d7\n");
-		fprintf(output_file, "\tseq.b d7\n");
-		fprintf(output_file, "\tandi.b #1, d7\n");
-		fprintf(output_file, "\tmove.l d7, %d(sp)\n", -(int) v->data.stack_pos);
+		if(type_size(&(v->data_type), 0) == 1){
+			fprintf(output_file, "\tmove.b %d(sp), d7\n", -(int) v->data.stack_pos);
+			fprintf(output_file, "\ttst.b d7\n");
+			fprintf(output_file, "\tseq.b d7\n");
+			fprintf(output_file, "\tandi.w #1, d7\n");
+			fprintf(output_file, "\tmove.w d7, %d(sp)\n", -(int) v->data.stack_pos);
+		} else if(type_size(&(v->data_type), 0) == 2){
+			fprintf(output_file, "\tmove.w %d(sp), d7\n", -(int) v->data.stack_pos);
+			fprintf(output_file, "\ttst.w d7\n");
+			fprintf(output_file, "\tseq.b d7\n");
+			fprintf(output_file, "\tandi.w #1, d7\n");
+			fprintf(output_file, "\tmove.w d7, %d(sp)\n", -(int) v->data.stack_pos);
+		} else if(type_size(&(v->data_type), 0) == 4){
+			fprintf(output_file, "\tmove.l %d(sp), d7\n", -(int) v->data.stack_pos);
+			fprintf(output_file, "\ttst.l d7\n");
+			fprintf(output_file, "\tseq.b d7\n");
+			fprintf(output_file, "\tandi.w #1, d7\n");
+			fprintf(output_file, "\tmove.w d7, %d(sp)\n", -(int) v->data.stack_pos);
+		}
 	}
 
 	v->data_type = INT_TYPE;
@@ -1476,7 +1525,7 @@ static void compile_expression_recursive(value *first_value, char **c, FILE *out
 		} else if(first_value->data.type == data_stack){
 			fprintf(output_file, "\ttst.w %d(sp)\n", -(int) first_value->data.stack_pos);
 			fprintf(output_file, "\tsne.b %d(sp)\n", -(int) first_value->data.stack_pos);
-			fprintf(output_file, "\tandi.l #1, %d(sp)\n", -(int) first_value->data.stack_pos);
+			fprintf(output_file, "\tandi.l #$01000000, %d(sp)\n", -(int) first_value->data.stack_pos);
 			fprintf(output_file, "\tbne __L%d\n", label_num);
 		}
 	} else if(current_operation == operation_logical_and){
@@ -1491,7 +1540,7 @@ static void compile_expression_recursive(value *first_value, char **c, FILE *out
 		} else if(first_value->data.type == data_stack){
 			fprintf(output_file, "\ttst.w %d(sp)\n", -(int) first_value->data.stack_pos);
 			fprintf(output_file, "\tsne.b %d(sp)\n", -(int) first_value->data.stack_pos);
-			fprintf(output_file, "\tandi.l #1, %d(sp)\n", -(int) first_value->data.stack_pos);
+			fprintf(output_file, "\tandi.l #$01000000, %d(sp)\n", -(int) first_value->data.stack_pos);
 			fprintf(output_file, "\tbeq __L%d\n", label_num);
 		}
 	}
