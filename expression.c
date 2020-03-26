@@ -672,6 +672,8 @@ void compile_dereference(value *v, FILE *output_file){
 			if(type_size(&data_type, 0) == 1){
 				fprintf(output_file, "\tmove.l d%d, a0\n", v->data.reg);
 				fprintf(output_file, "\tmove.b (a0), d%d\n", v->data.reg);
+				fprintf(output_file, "\text.w d%d\n", v->data.reg);
+				data_type = INT_TYPE;
 			} else if(type_size(&data_type, 0) == 2){
 				fprintf(output_file, "\tmove.l d%d, a0\n", v->data.reg);
 				fprintf(output_file, "\tmove.w (a0), d%d\n", v->data.reg);
