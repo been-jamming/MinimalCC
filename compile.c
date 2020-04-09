@@ -89,22 +89,21 @@ void compile_file(char *program, char *identifier_name, char *arguments, unsigne
 }
 
 void compile_function(char **c, char *identifier_name, char *arguments, unsigned int identifier_length, unsigned int num_arguments, FILE *output_file){
-	type t = EMPTY_TYPE;
-	type argument_type = EMPTY_TYPE;
 	variable *var;
 	variable *local_var;
 	unsigned int current_argument = 0;
 
 	num_vars = 0;
 	variables_size = 0;
-	parse_type(&t, c, identifier_name, arguments, identifier_length, num_arguments);
+	return_type = EMPTY_TYPE;
+	parse_type(&return_type, c, identifier_name, arguments, identifier_length, num_arguments);
 
 	if(!identifier_name){
 		snprintf(error_message, sizeof(error_message), "Expected identifier name");
 		do_error(1);
 	}
 	skip_whitespace(c);
-	if(peek_type(&t) != type_function){
+	if(peek_type(&return_type) != type_function){
 		skip_whitespace(c);
 		if(**c != ';'){
 			snprintf(error_message, sizeof(error_message), "Expected ';'");
@@ -117,12 +116,12 @@ void compile_function(char **c, char *identifier_name, char *arguments, unsigned
 			do_error(1);
 		}
 		var = malloc(sizeof(variable));
-		var->var_type = t;
+		var->var_type = return_type;
 		var->varname = malloc(strlen(identifier_name) + 1);
 		var->leave_as_address = 0;
 		strcpy(var->varname, identifier_name);
 		write_dictionary(&global_variables, var->varname, var, 0);
-		fprintf(output_file, ".data\n.align 2\n%s:\n.space %d\n.text\n", identifier_name, align4(type_size(&t, 0)));
+		fprintf(output_file, ".data\n.align 2\n%s:\n.space %d\n.text\n", identifier_name, align4(type_size(&return_type, 0)));
 	} else {
 		if(!*identifier_name){
 			snprintf(error_message, sizeof(error_message), "Expected function name");
@@ -131,13 +130,13 @@ void compile_function(char **c, char *identifier_name, char *arguments, unsigned
 		var = read_dictionary(global_variables, identifier_name, 0);
 		if(!var){
 			var = malloc(sizeof(variable));
-			var->var_type = t;
+			var->var_type = return_type;
 			var->varname = malloc(strlen(identifier_name) + 1);
 			var->leave_as_address = 1;
 			strcpy(var->varname, identifier_name);
 			write_dictionary(&global_variables, var->varname, var, 0);
 		} else {
-			if(!types_equal(&(var->var_type), &t)){
+			if(!types_equal(&(var->var_type), &return_type)){
 				snprintf(error_message, sizeof(error_message), "Incompatible function definitions");
 				do_error(1);
 			}
@@ -154,8 +153,8 @@ void compile_function(char **c, char *identifier_name, char *arguments, unsigned
 		local_variables[0] = malloc(sizeof(dictionary));
 		*local_variables[0] = create_dictionary(NULL);
 		fprintf(output_file, "\n.globl %s\n%s:\n", identifier_name, identifier_name);
-		pop_type(&t);
-		while(peek_type(&t) != type_returns){
+		pop_type(&return_type);
+		while(peek_type(&return_type) != type_returns){
 			if(current_argument >= num_arguments){
 				snprintf(error_message, sizeof(error_message), "Too many arguments!");
 				do_error(1);
@@ -164,9 +163,8 @@ void compile_function(char **c, char *identifier_name, char *arguments, unsigned
 				snprintf(error_message, sizeof(error_message), "Duplicate argument names");
 				do_error(1);
 			}
-			argument_type = get_argument_type(&t);
 			local_var = malloc(sizeof(variable));
-			local_var->var_type = argument_type;
+			local_var->var_type = get_argument_type(&return_type);
 			local_var->varname = malloc(strlen(arguments) + 1);
 			strcpy(local_var->varname, arguments);
 			local_var->stack_pos = variables_size;
@@ -176,8 +174,7 @@ void compile_function(char **c, char *identifier_name, char *arguments, unsigned
 			current_argument++;
 			num_vars++;
 		}
-		pop_type(&t);
-		return_type = t;
+		pop_type(&return_type);
 		if(peek_type(&return_type) == type_function){
 			snprintf(error_message, sizeof(error_message), "Function cannot return function");
 			do_error(1);
