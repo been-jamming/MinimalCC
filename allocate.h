@@ -30,7 +30,7 @@ struct data_entry{
 
 extern unsigned int stack_size;
 extern unsigned int variables_size;
-reg_list register_list;
+extern reg_list register_list;
 
 void initialize_register_list();
 data_entry allocate(unsigned char force_stack);

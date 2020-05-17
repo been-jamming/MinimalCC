@@ -1381,7 +1381,7 @@ void compile_operation(value *first_value, value *next_value, operation op, FILE
 static void compile_expression_recursive(value *first_value, char **c, FILE *output_file){
 	operation current_operation;
 	operation next_operation;
-	unsigned int label_num;
+	unsigned int label_num = 0;
 	value next_value;
 	char *temp_c;
 	type cast_to;
