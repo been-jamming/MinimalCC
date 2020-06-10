@@ -3,6 +3,7 @@
 
 unsigned int stack_size = 0;
 unsigned int variables_size = 0;
+reg_list register_list;
 
 void initialize_register_list(){
 	unsigned int i;
