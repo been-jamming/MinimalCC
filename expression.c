@@ -1543,7 +1543,9 @@ void determine_stack_size(value *first_value, char **c, unsigned char dereferenc
 void compile_root_expression(value *first_value, char **c, unsigned char dereference, unsigned char force_stack, FILE *output_file){
 	determine_stack_size(first_value, c, dereference, force_stack);
 	deallocate(first_value->data);
-	fprintf(output_file, "addi $sp, $sp, %d\n", -saved_stack_size);
+	if(saved_stack_size != 0){
+		fprintf(output_file, "addi $sp, $sp, %d\n", -saved_stack_size);
+	}
 	compile_expression(first_value, c, dereference, force_stack, output_file);
 }
 
@@ -1554,5 +1556,7 @@ void reset_stack_pos(value *first_value, FILE *output_file){
 	if(first_value->data.type == data_stack){
 		fprintf(output_file, "lw $t0, %d($sp)\n", get_stack_pos(first_value->data));
 	}
-	fprintf(output_file, "addi $sp, $sp, %d\n", saved_stack_size);
+	if(saved_stack_size != 0){
+		fprintf(output_file, "addi $sp, $sp, %d\n", saved_stack_size);
+	}
 }
