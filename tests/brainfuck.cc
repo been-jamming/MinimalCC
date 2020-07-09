@@ -8,6 +8,7 @@ Written for MCC
 void inputs(char *, int);
 void printc(char);
 char inputc();
+void prints(char *);
 
 char input_program[20000];
 char data[20000];
@@ -71,6 +72,7 @@ void interpret(char *program){
 
 void entry(){
 	initialize();
+	prints("Enter program:");
 	inputs(input_program, 20000);
 	interpret(input_program);
 }

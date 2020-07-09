@@ -9,6 +9,7 @@
 #define MAX_SOURCEFILES 32
 
 int num_vars = 0;
+int num_args = 0;
 int num_strs = 0;
 int current_line;
 type return_type;
@@ -179,10 +180,11 @@ void compile_function(char **c, char *identifier_name, char *arguments, unsigned
 			snprintf(error_message, sizeof(error_message), "Function cannot return function");
 			do_error(1);
 		}
+		num_args = num_vars;
 		compile_block(c, 1, output_file);
 		++*c;
 		var->num_args = num_vars;
-		fprintf(output_file, "lw $ra, 0($sp)\n");
+		fprintf(output_file, "lw $ra, %d($sp)\n", 4 + num_args*4);
 		fprintf(output_file, "jr $ra\n");
 	}
 }
@@ -224,11 +226,7 @@ void compile_block(char **c, unsigned char function_beginning, FILE *output_file
 	}
 
 	if(new_scope){
-		if(function_beginning){
-			fprintf(output_file, "addi $sp, $sp, %d\n", -(int) variables_size - 8);
-		} else {
-			fprintf(output_file, "addi $sp, $sp, %d\n", -(int) variables_size + variables_size_before);
-		}
+		fprintf(output_file, "addi $sp, $sp, %d\n", -variables_size + variables_size_before);
 	}
 
 	while(**c != '}'){
@@ -237,11 +235,7 @@ void compile_block(char **c, unsigned char function_beginning, FILE *output_file
 	}
 
 	if(new_scope){
-		if(function_beginning){
-			fprintf(output_file, "addi $sp, $sp, %d\n", variables_size + 8);
-		} else {
-			fprintf(output_file, "addi $sp, $sp, %d\n", variables_size - variables_size_before);
-		}
+		fprintf(output_file, "addi $sp, $sp, %d\n", variables_size - variables_size_before);
 		free_dictionary(*local_variables[current_scope], free_var);
 		free(local_variables[current_scope]);
 		local_variables[current_scope] = NULL;
@@ -266,14 +260,14 @@ void compile_statement(char **c, FILE *output_file){
 			do_error(1);;
 		}
 		++*c;
-		compile_expression(&expression_output, c, 1, 0, output_file);
+		compile_root_expression(&expression_output, c, 1, 0, output_file);
 		cast(&expression_output, INT_TYPE, 0, output_file);
+		reset_stack_pos(&expression_output, output_file);
 		label_num0 = num_labels;
 		num_labels++;
 		if(expression_output.data.type == data_register){
 			fprintf(output_file, "beq $s%d, $zero, __L%d\n", expression_output.data.reg, label_num0);
 		} else if(expression_output.data.type == data_stack){
-			fprintf(output_file, "lw $t0, %d($sp)\n", -(int) expression_output.data.stack_pos);
 			fprintf(output_file, "beq $t0, $zero, __L%d\n", label_num0);
 		}
 		deallocate(expression_output.data);
@@ -310,12 +304,12 @@ void compile_statement(char **c, FILE *output_file){
 		label_num1 = num_labels + 1;
 		num_labels += 2;
 		fprintf(output_file, "\n__L%d:\n", label_num0);
-		compile_expression(&expression_output, c, 1, 0, output_file);
+		compile_root_expression(&expression_output, c, 1, 0, output_file);
 		cast(&expression_output, INT_TYPE, 0, output_file);
+		reset_stack_pos(&expression_output, output_file);
 		if(expression_output.data.type == data_register){
 			fprintf(output_file, "beq $s%d, $zero, __L%d\n", expression_output.data.reg, label_num1);
 		} else if(expression_output.data.type == data_stack){
-			fprintf(output_file, "lw $t0, %d($sp)\n", -(int) expression_output.data.stack_pos);
 			fprintf(output_file, "beq $t0, $zero, __L%d\n", label_num1);
 		}
 		deallocate(expression_output.data);
@@ -344,7 +338,8 @@ void compile_statement(char **c, FILE *output_file){
 		num_labels += 4;
 		skip_whitespace(c);
 		if(**c != ';'){
-			compile_expression(&expression_output, c, 1, 0, output_file);
+			compile_root_expression(&expression_output, c, 1, 0, output_file);
+			reset_stack_pos(&expression_output, output_file);
 			deallocate(expression_output.data);
 			skip_whitespace(c);
 			if(**c != ';'){
@@ -356,12 +351,12 @@ void compile_statement(char **c, FILE *output_file){
 		fprintf(output_file, "\n__L%d:\n", label_num0);
 		skip_whitespace(c);
 		if(**c != ';'){
-			compile_expression(&expression_output, c, 1, 0, output_file);
+			compile_root_expression(&expression_output, c, 1, 0, output_file);
 			cast(&expression_output, INT_TYPE, 0, output_file);
+			reset_stack_pos(&expression_output, output_file);
 			if(expression_output.data.type == data_register){
 				fprintf(output_file, "beq $s%d, $zero, __L%d\n", expression_output.data.reg, label_num1);
 			} else if(expression_output.data.type == data_stack){
-				fprintf(output_file, "lw $t0, %d($sp)\n", -(int) expression_output.data.stack_pos);
 				fprintf(output_file, "beq $t0, $zero, __L%d\n", label_num1);
 			}
 			deallocate(expression_output.data);
@@ -375,7 +370,8 @@ void compile_statement(char **c, FILE *output_file){
 		fprintf(output_file, "j __L%d\n\n__L%d:\n", label_num2, label_num3);
 		skip_whitespace(c);
 		if(**c != ')'){
-			compile_expression(&expression_output, c, 1, 0, output_file);
+			compile_root_expression(&expression_output, c, 1, 0, output_file);
+			reset_stack_pos(&expression_output, output_file);
 			deallocate(expression_output.data);
 			skip_whitespace(c);
 			if(**c != ')'){
@@ -398,23 +394,23 @@ void compile_statement(char **c, FILE *output_file){
 			}
 			++*c;
 		} else {
-			compile_expression(&expression_output, c, 1, 0, output_file);
+			compile_root_expression(&expression_output, c, 1, 0, output_file);
 			if(**c != ';'){
 				snprintf(error_message, sizeof(error_message), "Expected ';'");
 				do_error(1);
 			}
 			++*c;
 			cast(&expression_output, return_type, 1, output_file);
+			reset_stack_pos(&expression_output, output_file);
 			if(expression_output.data.type == data_register){
-				fprintf(output_file, "sw $s%d, %d($sp)\n", expression_output.data.reg, variables_size + 4);
+				fprintf(output_file, "sw $s%d, %d($sp)\n", expression_output.data.reg, variables_size);
 			} else if(expression_output.data.type == data_stack){
-				fprintf(output_file, "lw $t0, %d($sp)\n", -(int) expression_output.data.stack_pos);
-				fprintf(output_file, "sw $t0, %d($sp)\n", variables_size + 4);
+				fprintf(output_file, "sw $t0, %d($sp)\n", variables_size);
 			}
 			deallocate(expression_output.data);
 		}
-		fprintf(output_file, "addi $sp, $sp, %d\n", variables_size + 8);
-		fprintf(output_file, "lw $ra, 0($sp)\n");
+		fprintf(output_file, "addi $sp, $sp, %d\n", variables_size - num_args*4);
+		fprintf(output_file, "lw $ra, %d($sp)\n", 4 + num_args*4);
 		fprintf(output_file, "jr $ra\n");
 	} else if(**c == ';'){
 		//Empty statement, so pass
@@ -428,7 +424,8 @@ void compile_statement(char **c, FILE *output_file){
 		}
 		++*c;
 	} else {
-		compile_expression(&expression_output, c, 1, 0, output_file);
+		compile_root_expression(&expression_output, c, 1, 0, output_file);
+		reset_stack_pos(&expression_output, output_file);
 		deallocate(expression_output.data);
 		if(**c == ';'){
 			++*c;

@@ -1,6 +1,7 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
+#include <stdarg.h>
 #include "dictionary.h"
 #include "expression.h"
 #include "compile.h"
@@ -13,6 +14,19 @@ dictionary global_variables;
 unsigned int num_labels = 0;
 unsigned int current_string = 0;
 static unsigned int order_of_operations[] = {0, 9, 9, 10, 10, 1, 7, 7, 7, 7, 6, 6, 5, 4, 9, 3, 2, 8, 8};
+
+static unsigned char do_print;
+
+//Wrapper to fprintf to control whether we actually write to a file
+void fileprint(FILE *fp, const char *format, ...){
+	va_list ap;
+
+	if(do_print){
+		va_start(ap, format);
+		vfprintf(fp, format, ap);
+		va_end(ap);
+	}
+}
 
 void operation_none_func(char *reg_a, char *reg_b, value *value_a, value *value_b, FILE *output_file, type *output_type){
 	snprintf(error_message, sizeof(error_message), "Unrecognized operation");
@@ -32,7 +46,7 @@ void operation_add_func(char *reg_a, char *reg_b, value *value_a, value *value_b
 		if(peek_type(&(value_b->data_type)) == type_pointer){
 			snprintf(warning_message, sizeof(warning_message), "Adding two pointers together. Treating them as integers instead");
 			do_warning();
-			fprintf(output_file, "add %s, %s, %s\n", reg_a, reg_a, reg_b);
+			fileprint(output_file, "add %s, %s, %s\n", reg_a, reg_a, reg_b);
 			*output_type = value_a->data_type;
 			return;
 		}
@@ -43,20 +57,20 @@ void operation_add_func(char *reg_a, char *reg_b, value *value_a, value *value_b
 			pointer_value = value_b;
 			integer_reg = reg_a;
 		} else {
-			fprintf(output_file, "add %s, %s, %s\n", reg_a, reg_a, reg_b);
+			fileprint(output_file, "add %s, %s, %s\n", reg_a, reg_a, reg_b);
 			*output_type = INT_TYPE;
 			return;
 		}
 	}
 	pointer_size = type_size(&(pointer_value->data_type), 1);
 	if(pointer_size == 4){
-		fprintf(output_file, "sll %s, %s, 2\n", integer_reg, integer_reg);
+		fileprint(output_file, "sll %s, %s, 2\n", integer_reg, integer_reg);
 	} else if(pointer_size != 1){
-		fprintf(output_file, "li $t2, %d\n", pointer_size);
-		fprintf(output_file, "mult %s, $t2\n", integer_reg);
-		fprintf(output_file, "mflo %s\n", integer_reg);
+		fileprint(output_file, "li $t2, %d\n", pointer_size);
+		fileprint(output_file, "mult %s, $t2\n", integer_reg);
+		fileprint(output_file, "mflo %s\n", integer_reg);
 	}
-	fprintf(output_file, "add %s, %s, %s\n", reg_a, reg_a, reg_b);
+	fileprint(output_file, "add %s, %s, %s\n", reg_a, reg_a, reg_b);
 
 	*output_type = pointer_value->data_type;
 }
@@ -80,13 +94,13 @@ void operation_subtract_func(char *reg_a, char *reg_b, value *value_a, value *va
 				snprintf(error_message, sizeof(error_message), "Cannot subtract pointers to different types");
 				do_error(1);
 			}
-			fprintf(output_file, "sub %s, %s, %s\n", reg_a, reg_a, reg_b);
+			fileprint(output_file, "sub %s, %s, %s\n", reg_a, reg_a, reg_b);
 			if(type_size(pointer_type, 1) == 4){
-				fprintf(output_file, "sra %s, %s, 2\n", reg_a, reg_a);
+				fileprint(output_file, "sra %s, %s, 2\n", reg_a, reg_a);
 			} else if(type_size(pointer_type, 1) != 1){
-				fprintf(output_file, "li $t2, %d\n", type_size(pointer_type, 1));
-				fprintf(output_file, "div %s, $t2\n", reg_a);
-				fprintf(output_file, "mflo %s\n", reg_a);
+				fileprint(output_file, "li $t2, %d\n", type_size(pointer_type, 1));
+				fileprint(output_file, "div %s, $t2\n", reg_a);
+				fileprint(output_file, "mflo %s\n", reg_a);
 			}
 			*output_type = INT_TYPE;
 			return;
@@ -98,20 +112,20 @@ void operation_subtract_func(char *reg_a, char *reg_b, value *value_a, value *va
 			pointer_value = value_b;
 			integer_reg = reg_a;
 		} else {
-			fprintf(output_file, "sub %s, %s, %s\n", reg_a, reg_a, reg_b);
+			fileprint(output_file, "sub %s, %s, %s\n", reg_a, reg_a, reg_b);
 			*output_type = INT_TYPE;
 			return;
 		}
 	}
 	pointer_size = type_size(&(pointer_value->data_type), 1);
 	if(pointer_size == 4){
-		fprintf(output_file, "sll %s, %s, 2\n", integer_reg, integer_reg);
+		fileprint(output_file, "sll %s, %s, 2\n", integer_reg, integer_reg);
 	} else if(pointer_size != 1){
-		fprintf(output_file, "li $t2, %d\n", pointer_size);
-		fprintf(output_file, "mult %s, $t2\n", integer_reg);
-		fprintf(output_file, "mflo %s\n", integer_reg);
+		fileprint(output_file, "li $t2, %d\n", pointer_size);
+		fileprint(output_file, "mult %s, $t2\n", integer_reg);
+		fileprint(output_file, "mflo %s\n", integer_reg);
 	}
-	fprintf(output_file, "sub %s, %s, %s\n", reg_a, reg_a, reg_b);
+	fileprint(output_file, "sub %s, %s, %s\n", reg_a, reg_a, reg_b);
 
 	*output_type = pointer_value->data_type;
 }
@@ -121,8 +135,8 @@ void operation_multiply_func(char *reg_a, char *reg_b, value *value_a, value *va
 		snprintf(error_message, sizeof(error_message), "Cannot multiply non-int types");
 		do_error(1);
 	}
-	fprintf(output_file, "mult %s, %s\n", reg_a, reg_b);
-	fprintf(output_file, "mflo %s\n", reg_a);
+	fileprint(output_file, "mult %s, %s\n", reg_a, reg_b);
+	fileprint(output_file, "mflo %s\n", reg_a);
 	*output_type = INT_TYPE;
 }
 
@@ -131,8 +145,8 @@ void operation_divide_func(char *reg_a, char *reg_b, value *value_a, value *valu
 		snprintf(error_message, sizeof(error_message), "Cannot divide non-int types");
 		do_error(1);
 	}
-	fprintf(output_file, "div %s, %s\n", reg_a, reg_b);
-	fprintf(output_file, "mflo %s\n", reg_a);
+	fileprint(output_file, "div %s, %s\n", reg_a, reg_b);
+	fileprint(output_file, "mflo %s\n", reg_a);
 	*output_type = INT_TYPE;
 }
 
@@ -141,8 +155,8 @@ void operation_modulo_func(char *reg_a, char *reg_b, value *value_a, value *valu
 		snprintf(error_message, sizeof(error_message), "Cannot modulo non-int types");
 		do_error(1);
 	}
-	fprintf(output_file, "div %s, %s\n", reg_a, reg_b);
-	fprintf(output_file, "mfhi %s\n", reg_a);
+	fileprint(output_file, "div %s, %s\n", reg_a, reg_b);
+	fileprint(output_file, "mfhi %s\n", reg_a);
 	*output_type = INT_TYPE;
 }
 
@@ -157,11 +171,11 @@ void operation_assign_func(char *reg_a, char *reg_b, value *value_a, value *valu
 		do_error(1);
 	}
 	if(type_size(&(value_a->data_type), 0) == 4){
-		fprintf(output_file, "sw %s, 0(%s)\n", reg_b, reg_a);
+		fileprint(output_file, "sw %s, 0(%s)\n", reg_b, reg_a);
 	} else if(type_size(&(value_a->data_type), 0) == 1){
-		fprintf(output_file, "sb %s, 0(%s)\n", reg_b, reg_a);
+		fileprint(output_file, "sb %s, 0(%s)\n", reg_b, reg_a);
 	}
-	fprintf(output_file, "move %s, %s\n", reg_a, reg_b);
+	fileprint(output_file, "move %s, %s\n", reg_a, reg_b);
 	*output_type = value_b->data_type;
 }
 
@@ -170,7 +184,7 @@ void operation_less_than_func(char *reg_a, char *reg_b, value *value_a, value *v
 		snprintf(error_message, sizeof(error_message), "Cannot compare non-int types with '<'");
 		do_error(1);
 	}
-	fprintf(output_file, "slt %s, %s, %s\n", reg_a, reg_a, reg_b);
+	fileprint(output_file, "slt %s, %s, %s\n", reg_a, reg_a, reg_b);
 	*output_type = INT_TYPE;
 }
 
@@ -179,7 +193,7 @@ void operation_greater_than_func(char *reg_a, char *reg_b, value *value_a, value
 		snprintf(error_message, sizeof(error_message), "Cannot compare non-int types with '>'");
 		do_error(1);
 	}
-	fprintf(output_file, "sgt %s, %s, %s\n", reg_a, reg_a, reg_b);
+	fileprint(output_file, "sgt %s, %s, %s\n", reg_a, reg_a, reg_b);
 	*output_type = INT_TYPE;
 }
 
@@ -188,8 +202,8 @@ void operation_less_than_or_equal_func(char *reg_a, char *reg_b, value *value_a,
 		snprintf(error_message, sizeof(error_message), "Cannot compare non-int types with '<='");
 		do_error(1);
 	}
-	fprintf(output_file, "sgt %s, %s, %s\n", reg_a, reg_a, reg_b);
-	fprintf(output_file, "seq %s, %s, $zero\n", reg_a, reg_a);
+	fileprint(output_file, "sgt %s, %s, %s\n", reg_a, reg_a, reg_b);
+	fileprint(output_file, "seq %s, %s, $zero\n", reg_a, reg_a);
 	*output_type = INT_TYPE;
 }
 
@@ -198,8 +212,8 @@ void operation_greater_than_or_equal_func(char *reg_a, char *reg_b, value *value
 		snprintf(error_message, sizeof(error_message), "Cannot compare non-int types with '>='");
 		do_error(1);
 	}
-	fprintf(output_file, "slt %s, %s, %s\n", reg_a, reg_a, reg_b);
-	fprintf(output_file, "seq %s, %s, $zero\n", reg_a, reg_a);
+	fileprint(output_file, "slt %s, %s, %s\n", reg_a, reg_a, reg_b);
+	fileprint(output_file, "seq %s, %s, $zero\n", reg_a, reg_a);
 	*output_type = INT_TYPE;
 }
 
@@ -216,12 +230,12 @@ void operation_equals_func(char *reg_a, char *reg_b, value *value_a, value *valu
 				snprintf(warning_message, sizeof(warning_message), "Comparing incompatible data types");
 				do_warning();
 			}
-			fprintf(output_file, "seq %s, %s, %s\n", reg_a, reg_a, reg_b);
+			fileprint(output_file, "seq %s, %s, %s\n", reg_a, reg_a, reg_b);
 			*output_type = INT_TYPE;
 		} else {
 			snprintf(warning_message, sizeof(warning_message), "Comparing pointer and non-pointer types");
 			do_warning();
-			fprintf(output_file, "seq %s, %s, %s\n", reg_a, reg_a, reg_b);
+			fileprint(output_file, "seq %s, %s, %s\n", reg_a, reg_a, reg_b);
 			*output_type = INT_TYPE;
 		}
 	} else {
@@ -229,7 +243,7 @@ void operation_equals_func(char *reg_a, char *reg_b, value *value_a, value *valu
 			snprintf(warning_message, sizeof(warning_message), "Comparing pointer and non-pointer types");
 			do_warning();
 		}
-		fprintf(output_file, "seq %s, %s, %s\n", reg_a, reg_a, reg_b);
+		fileprint(output_file, "seq %s, %s, %s\n", reg_a, reg_a, reg_b);
 		*output_type = INT_TYPE;
 	}
 }
@@ -247,12 +261,12 @@ void operation_not_equals_func(char *reg_a, char *reg_b, value *value_a, value *
 				snprintf(warning_message, sizeof(warning_message), "Comparing incompatible data types");
 				do_warning();
 			}
-			fprintf(output_file, "sne %s, %s, %s\n", reg_a, reg_a, reg_b);
+			fileprint(output_file, "sne %s, %s, %s\n", reg_a, reg_a, reg_b);
 			*output_type = INT_TYPE;
 		} else {
 			snprintf(warning_message, sizeof(warning_message), "Comparing pointer and non-pointer types");
 			do_warning();
-			fprintf(output_file, "sne %s, %s, %s\n", reg_a, reg_a, reg_b);
+			fileprint(output_file, "sne %s, %s, %s\n", reg_a, reg_a, reg_b);
 			*output_type = INT_TYPE;
 		}
 	} else {
@@ -260,7 +274,7 @@ void operation_not_equals_func(char *reg_a, char *reg_b, value *value_a, value *
 			snprintf(warning_message, sizeof(warning_message), "Comparing pointer and non-pointer types");
 			do_warning();
 		}
-		fprintf(output_file, "sne %s, %s, %s\n", reg_a, reg_a, reg_b);
+		fileprint(output_file, "sne %s, %s, %s\n", reg_a, reg_a, reg_b);
 		*output_type = INT_TYPE;
 	}
 }
@@ -270,7 +284,7 @@ void operation_and_func(char *reg_a, char *reg_b, value *value_a, value *value_b
 		snprintf(error_message, sizeof(error_message), "Cannot '&' non-int types");
 		do_error(1);
 	}
-	fprintf(output_file, "and %s, %s, %s\n", reg_a, reg_a, reg_b);
+	fileprint(output_file, "and %s, %s, %s\n", reg_a, reg_a, reg_b);
 	*output_type = INT_TYPE;
 }
 
@@ -279,7 +293,7 @@ void operation_or_func(char *reg_a, char *reg_b, value *value_a, value *value_b,
 		snprintf(error_message, sizeof(error_message), "Cannot '|' non-int types");
 		do_error(1);
 	}
-	fprintf(output_file, "or %s, %s, %s\n", reg_a, reg_a, reg_b);
+	fileprint(output_file, "or %s, %s, %s\n", reg_a, reg_a, reg_b);
 	*output_type = INT_TYPE;
 }
 
@@ -288,7 +302,7 @@ void operation_shift_left_func(char *reg_a, char *reg_b, value *value_a, value *
 		snprintf(error_message, sizeof(error_message), "Cannot '<<' non-arithmetic types");
 		do_error(1);
 	}
-	fprintf(output_file, "sllv %s, %s, %s\n", reg_a, reg_a, reg_b);
+	fileprint(output_file, "sllv %s, %s, %s\n", reg_a, reg_a, reg_b);
 	*output_type = INT_TYPE;
 }
 
@@ -297,7 +311,7 @@ void operation_shift_right_func(char *reg_a, char *reg_b, value *value_a, value 
 		snprintf(error_message, sizeof(error_message), "Cannot '>>' non-arithmetic types");
 		do_error(1);
 	}
-	fprintf(output_file, "srav %s, %s, %s\n", reg_a, reg_a, reg_b);
+	fileprint(output_file, "srav %s, %s, %s\n", reg_a, reg_a, reg_b);
 	*output_type = INT_TYPE;
 }
 
@@ -382,6 +396,10 @@ void free_local_variables(){
 	variables_size = 0;
 }
 
+static int var_stack_position(variable *var){
+	return saved_stack_size + variables_size - var->stack_pos - 4;
+}
+
 unsigned int align4(unsigned int size){
 	unsigned int remainder;
 
@@ -427,9 +445,9 @@ void compile_integer(value *output, char **c, unsigned char dereference, unsigne
 	output->data = allocate(force_stack);
 	int_value = strtol(*c, c, 0);
 	if(output->data.type == data_register){
-		fprintf(output_file, "li $s%d, %d\n", (int) output->data.reg, int_value);
+		fileprint(output_file, "li $s%d, %d\n", output->data.reg, int_value);
 	} else if(output->data.type == data_stack){
-		fprintf(output_file, "li $t0, %d\nsw $t0, %d($sp)\n", int_value, -(int) output->data.stack_pos);
+		fileprint(output_file, "li $t0, %d\nsw $t0, %d($sp)\n", int_value, get_stack_pos(output->data));
 	}
 	output->data_type = INT_TYPE;
 	output->is_reference = 0;
@@ -446,10 +464,10 @@ static void compile_local_variable(value *output, variable *var, unsigned char d
 	if(dereference){
 		if(peek_type(&(var->var_type)) == type_list){
 			if(data.type == data_register){
-				fprintf(output_file, "addi $s%d, $sp, %d\n", data.reg, variables_size - var->stack_pos);
+				fileprint(output_file, "addi $s%d, $sp, %d\n", data.reg, var_stack_position(var));
 			} else if(data.type == data_stack){
-				fprintf(output_file, "addi $t0, $sp, %d\n", variables_size - var->stack_pos);
-				fprintf(output_file, "sw $t0, %d($sp)\n", -(int) data.stack_pos);
+				fileprint(output_file, "addi $t0, $sp, %d\n", var_stack_position(var));
+				fileprint(output_file, "sw $t0, %d($sp)\n", get_stack_pos(data));
 			}
 			pop_type(&(output->data_type));
 			output->data_type.current_index--;
@@ -458,22 +476,22 @@ static void compile_local_variable(value *output, variable *var, unsigned char d
 			if(data.type == data_register){
 				switch(type_size(&data_type, 0)){
 					case 1:
-						fprintf(output_file, "lb $s%d, %d($sp)\n", data.reg, variables_size - var->stack_pos);
+						fileprint(output_file, "lb $s%d, %d($sp)\n", data.reg, var_stack_position(var));
 						break;
 					case 4:
-						fprintf(output_file, "lw $s%d, %d($sp)\n", data.reg, variables_size - var->stack_pos);
+						fileprint(output_file, "lw $s%d, %d($sp)\n", data.reg, var_stack_position(var));
 						break;
 
 				}
 			} else if(data.type == data_stack){
 				switch(type_size(&data_type, 0)){
 					case 1:
-						fprintf(output_file, "lb $t0, %d($sp)\n", variables_size - var->stack_pos);
-						fprintf(output_file, "sb $t0, %d($sp)\n", -(int) data.stack_pos);
+						fileprint(output_file, "lb $t0, %d($sp)\n", var_stack_position(var));
+						fileprint(output_file, "sb $t0, %d($sp)\n", get_stack_pos(data));
 						break;
 					case 4:
-						fprintf(output_file, "lw $t0, %d($sp)\n", variables_size - var->stack_pos);
-						fprintf(output_file, "sw $t0, %d($sp)\n", -(int) data.stack_pos);
+						fileprint(output_file, "lw $t0, %d($sp)\n", var_stack_position(var));
+						fileprint(output_file, "sw $t0, %d($sp)\n", get_stack_pos(data));
 						break;
 				}
 			}
@@ -481,17 +499,17 @@ static void compile_local_variable(value *output, variable *var, unsigned char d
 	} else {
 		if(peek_type(&(var->var_type)) == type_list){
 			if(data.type == data_register){
-				fprintf(output_file, "addi $s%d, $sp, %d\n", data.reg, variables_size - var->stack_pos);
+				fileprint(output_file, "addi $s%d, $sp, %d\n", data.reg, var_stack_position(var));
 			} else if(data.type == data_stack){
-				fprintf(output_file, "addi $t0, $sp, %d\n", variables_size - var->stack_pos);
-				fprintf(output_file, "sw $t0, %d($sp)\n", -(int) data.stack_pos);
+				fileprint(output_file, "addi $t0, $sp, %d\n", var_stack_position(var));
+				fileprint(output_file, "sw $t0, %d($sp)\n", get_stack_pos(data));
 			}
 		} else {
 			if(data.type == data_register){
-				fprintf(output_file, "addi $s%d, $sp, %d\n", data.reg, variables_size - var->stack_pos);
+				fileprint(output_file, "addi $s%d, $sp, %d\n", data.reg, var_stack_position(var));
 			} else if(data.type == data_stack){
-				fprintf(output_file, "addi $t0, $sp, %d\n", variables_size - var->stack_pos);
-				fprintf(output_file, "sw $t0, %d($sp)\n", -(int) data.stack_pos);
+				fileprint(output_file, "addi $t0, $sp, %d\n", var_stack_position(var));
+				fileprint(output_file, "sw $t0, %d($sp)\n", get_stack_pos(data));
 			}
 		}
 		add_type_entry(&(output->data_type), type_pointer);
@@ -507,9 +525,9 @@ static void compile_global_variable(value *output, variable *var, unsigned char 
 	data_type = var->var_type;
 	data = allocate(force_stack);
 	if(data.type == data_register){
-		fprintf(output_file, "la $s%d, %s\n", data.reg, var->varname);
+		fileprint(output_file, "la $s%d, %s\n", data.reg, var->varname);
 	} else {
-		fprintf(output_file, "la $t0, %s\n", var->varname);
+		fileprint(output_file, "la $t0, %s\n", var->varname);
 	}
 	output->data = data;
 	output->is_reference = !dereference;
@@ -519,20 +537,20 @@ static void compile_global_variable(value *output, variable *var, unsigned char 
 			data_type.current_index--;
 			add_type_entry(&data_type, type_pointer);
 			if(data.type == data_stack){
-				fprintf(output_file, "sw $t0, %d($sp)\n", -(int) data.stack_pos);
+				fileprint(output_file, "sw $t0, %d($sp)\n", get_stack_pos(data));
 			}
 		} else {
 			if(data.type == data_register){
-				fprintf(output_file, "lw $s%d, 0($s%d)\n", data.reg, data.reg);
+				fileprint(output_file, "lw $s%d, 0($s%d)\n", data.reg, data.reg);
 			} else if(data.type == data_stack){
-				fprintf(output_file, "lw $t0, 0($t0)\n");
-				fprintf(output_file, "sw $t0, %d($sp)\n", -(int) data.stack_pos);
+				fileprint(output_file, "lw $t0, 0($t0)\n");
+				fileprint(output_file, "sw $t0, %d($sp)\n", get_stack_pos(data));
 			}
 		}
 	} else {
 		add_type_entry(&data_type, type_pointer);
 		if(data.type == data_stack){
-			fprintf(output_file, "sw $t0, %d($sp)\n", -(int) data.stack_pos);
+			fileprint(output_file, "sw $t0, %d($sp)\n", get_stack_pos(data));
 		}
 	}
 	output->data_type = data_type;
@@ -592,18 +610,18 @@ void cast(value *v, type t, unsigned char do_warn, FILE *output_file){
 
 	if(type_size(&(v->data_type), 0) == 4 && type_size(&t, 0) == 1){
 		if(v->data.type == data_register){
-			fprintf(output_file, "sll $s%d, $s%d, 24\n", v->data.reg, v->data.reg);
-			fprintf(output_file, "sra $s%d, $s%d, 24\n", v->data.reg, v->data.reg);
+			fileprint(output_file, "sll $s%d, $s%d, 24\n", v->data.reg, v->data.reg);
+			fileprint(output_file, "sra $s%d, $s%d, 24\n", v->data.reg, v->data.reg);
 		} else if(v->data.type == data_stack){
-			fprintf(output_file, "lw $t0, %d($sp)\n", -(int) v->data.stack_pos);
-			fprintf(output_file, "sll $t0, $t0, 24\n");
-			fprintf(output_file, "sra $t0, $t0, 24\n");
-			fprintf(output_file, "sw $t0, %d($sp)\n", -(int) v->data.stack_pos);
+			fileprint(output_file, "lw $t0, %d($sp)\n", get_stack_pos(v->data));
+			fileprint(output_file, "sll $t0, $t0, 24\n");
+			fileprint(output_file, "sra $t0, $t0, 24\n");
+			fileprint(output_file, "sw $t0, %d($sp)\n", get_stack_pos(v->data));
 		}
 	} else if(type_size(&(v->data_type), 0) == 1 && type_size(&t, 0) == 4){
 		if(v->data.type == data_stack){
-			fprintf(output_file, "lb $t0, %d($sp)\n", -(int) v->data.stack_pos);
-			fprintf(output_file, "sw $t0, %d($sp)\n", -(int) v->data.stack_pos);
+			fileprint(output_file, "lb $t0, %d($sp)\n", get_stack_pos(v->data));
+			fileprint(output_file, "sw $t0, %d($sp)\n", get_stack_pos(v->data));
 		}
 	}
 
@@ -640,18 +658,18 @@ void compile_dereference(value *v, FILE *output_file){
 	} else if(peek_type(&data_type) != type_function){
 		if(v->data.type == data_register){
 			if(type_size(&data_type, 0) == 1){
-				fprintf(output_file, "lb $s%d, 0($s%d)\n", v->data.reg, v->data.reg);
+				fileprint(output_file, "lb $s%d, 0($s%d)\n", v->data.reg, v->data.reg);
 			} else if(type_size(&data_type, 0) == 4){
-				fprintf(output_file, "lw $s%d, 0($s%d)\n", v->data.reg, v->data.reg);
+				fileprint(output_file, "lw $s%d, 0($s%d)\n", v->data.reg, v->data.reg);
 			}
 		} else if(v->data.type == data_stack){
-			fprintf(output_file, "lw $t0, %d($sp)\n", -(int) v->data.stack_pos);
+			fileprint(output_file, "lw $t0, %d($sp)\n", get_stack_pos(v->data));
 			if(type_size(&data_type, 0) == 1){
-				fprintf(output_file, "lb $t0, 0($t0)\n");
-				fprintf(output_file, "sb $t0, %d($sp)\n", -(int) v->data.stack_pos);
+				fileprint(output_file, "lb $t0, 0($t0)\n");
+				fileprint(output_file, "sb $t0, %d($sp)\n", get_stack_pos(v->data));
 			} else if(type_size(&data_type, 0) == 4){
-				fprintf(output_file, "lw $t0, 0($t0)\n");
-				fprintf(output_file, "sw $t0, %d($sp)\n", -(int) v->data.stack_pos);
+				fileprint(output_file, "lw $t0, 0($t0)\n");
+				fileprint(output_file, "sw $t0, %d($sp)\n", get_stack_pos(v->data));
 			}
 		}
 	}
@@ -667,8 +685,8 @@ void compile_function_call(char **c, value *func, FILE *output_file){
 	type current_argument_type;
 	value current_argument_value;
 	unsigned int label_num;
-	unsigned int func_stack_pos = 0;
-	unsigned int stack_size_before;
+	int func_stack_pos = 0;
+	int any_args = 0;
 
 	if(peek_type(&(func->data_type)) == type_pointer){
 		pop_type(&(func->data_type));
@@ -681,15 +699,14 @@ void compile_function_call(char **c, value *func, FILE *output_file){
 	label_num = num_labels;
 	num_labels++;
 	reg_state = push_registers(output_file);
-	stack_size_before = stack_size;
 
 	if(func->data.type == data_register){
 		func_stack_pos = get_reg_stack_pos(reg_state, func->data.reg);
 	}
 	return_address_data = allocate(1);
 	return_data = allocate(1);
-	fprintf(output_file, "la $t0, __L%d\n", label_num);
-	fprintf(output_file, "sw $t0, %d($sp)\n", -(int) return_address_data.stack_pos);
+	fileprint(output_file, "la $t0, __L%d\n", label_num);
+	fileprint(output_file, "sw $t0, %d($sp)\n", get_stack_pos(return_address_data));
 	if(peek_type(&(func->data_type)) == type_returns){
 		skip_whitespace(c);
 		if(**c != ')'){
@@ -699,6 +716,7 @@ void compile_function_call(char **c, value *func, FILE *output_file){
 		++*c;
 	}
 	while(peek_type(&(func->data_type)) != type_returns){
+		any_args = 1;
 		current_argument_type = get_argument_type(&(func->data_type));
 		compile_expression(&current_argument_value, c, 1, 1, output_file);
 		if(**c != ',' && peek_type(&(func->data_type)) != type_returns){
@@ -714,24 +732,27 @@ void compile_function_call(char **c, value *func, FILE *output_file){
 
 	pop_type(&(func->data_type));
 	if(func->data.type == data_register){
-		fprintf(output_file, "lw $t0, %d($sp)\n", -(int) func_stack_pos);
-		fprintf(output_file, "addi $sp, $sp, %d\n", -(int) stack_size_before);
-		fprintf(output_file, "jr $t0\n\n");
+		fileprint(output_file, "lw $t0, %d($sp)\n", func_stack_pos);
+		if(any_args)
+			fileprint(output_file, "addi $sp, $sp, %d\n", get_stack_pos(current_argument_value.data));
+		fileprint(output_file, "jr $t0\n\n");
 	} else if(func->data.type == data_stack){
-		fprintf(output_file, "lw $t0, %d($sp)\n", -(int) func->data.stack_pos);
-		fprintf(output_file, "addi $sp, $sp, %d\n", -(int) stack_size_before);
-		fprintf(output_file, "jr $t0\n\n");
+		fileprint(output_file, "lw $t0, %d($sp)\n", get_stack_pos(func->data));
+		if(any_args)
+			fileprint(output_file, "addi $sp, $sp, %d\n", get_stack_pos(current_argument_value.data));
+		fileprint(output_file, "jr $t0\n\n");
 	}
-	fprintf(output_file, "__L%d:\n", label_num);
-	fprintf(output_file, "addi $sp, $sp, %d\n", (int) stack_size_before);
-	fprintf(output_file, "lw $t0, %d($sp)\n", -(int) return_data.stack_pos);
+	fileprint(output_file, "__L%d:\n", label_num);
+	if(any_args)
+		fileprint(output_file, "addi $sp, $sp, %d\n", -get_stack_pos(current_argument_value.data));
+	fileprint(output_file, "lw $t0, %d($sp)\n", get_stack_pos(return_data));
 	deallocate(return_data);
 	deallocate(return_address_data);
 	pull_registers(reg_state, output_file);
 	if(func->data.type == data_register){
-		fprintf(output_file, "move $s%d, $t0\n", func->data.reg);
+		fileprint(output_file, "move $s%d, $t0\n", func->data.reg);
 	} else if(func->data.type == data_stack){
-		fprintf(output_file, "sw $t0, %d($sp)\n", -(int) func->data.stack_pos);
+		fileprint(output_file, "sw $t0, %d($sp)\n", get_stack_pos(func->data));
 	}
 }
 
@@ -754,68 +775,68 @@ void compile_list_index(char **c, value *address, unsigned char dereference, FIL
 	cast(&index, INT_TYPE, 1, output_file);
 	if(index.data.type == data_register){
 		if(type_size(&address_type, 0) == 4){
-			fprintf(output_file, "sll $s%d, $s%d, 2\n", index.data.reg, index.data.reg);
+			fileprint(output_file, "sll $s%d, $s%d, 2\n", index.data.reg, index.data.reg);
 		} else if(type_size(&address_type, 0) != 1){
-			fprintf(output_file, "li $t0, %d\n", (int) type_size(&address_type, 0));
-			fprintf(output_file, "mult $s%d, $t0\n", index.data.reg);
-			fprintf(output_file, "mflo $s%d\n", index.data.reg);
+			fileprint(output_file, "li $t0, %d\n", (int) type_size(&address_type, 0));
+			fileprint(output_file, "mult $s%d, $t0\n", index.data.reg);
+			fileprint(output_file, "mflo $s%d\n", index.data.reg);
 		}
 		if(address->data.type == data_register){
-			fprintf(output_file, "add $s%d, $s%d, $s%d\n", address->data.reg, address->data.reg, index.data.reg);
+			fileprint(output_file, "add $s%d, $s%d, $s%d\n", address->data.reg, address->data.reg, index.data.reg);
 			if(dereference && peek_type(&address_type) != type_list){
 				if(type_size(&address_type, 0) == 4){
-					fprintf(output_file, "lw $s%d, 0($s%d)\n", address->data.reg, address->data.reg);
+					fileprint(output_file, "lw $s%d, 0($s%d)\n", address->data.reg, address->data.reg);
 				} else if(type_size(&address_type, 0) == 1){
-					fprintf(output_file, "lb $s%d, 0($s%d)\n", address->data.reg, address->data.reg);
+					fileprint(output_file, "lb $s%d, 0($s%d)\n", address->data.reg, address->data.reg);
 				} else {
 					snprintf(error_message, sizeof(error_message), "[INTERNAL] Unusable type size");
 					do_error(1);
 				}
 			}
 		} else if(address->data.type == data_stack){
-			fprintf(output_file, "lw $t0, %d($sp)\n", -(int) address->data.stack_pos);
-			fprintf(output_file, "add $t0, $t0, $s%d\n", index.data.reg);
+			fileprint(output_file, "lw $t0, %d($sp)\n", get_stack_pos(address->data));
+			fileprint(output_file, "add $t0, $t0, $s%d\n", index.data.reg);
 			if(dereference && peek_type(&address_type) != type_list){
 				if(type_size(&address_type, 0) == 4){
-					fprintf(output_file, "lw $t0, 0($t0)\n");
+					fileprint(output_file, "lw $t0, 0($t0)\n");
 				} else if(type_size(&address_type, 0) == 1){
-					fprintf(output_file, "lb $t0, 0($t0)\n");
+					fileprint(output_file, "lb $t0, 0($t0)\n");
 				} else {
 					snprintf(error_message, sizeof(error_message), "[INTERNAL] Unusable type size");
 					do_error(1);
 				}
 			}
-			fprintf(output_file, "sw $t0, %d($sp)\n", -(int) address->data.stack_pos);
+			fileprint(output_file, "sw $t0, %d($sp)\n", get_stack_pos(address->data));
 		}
 	} else if(index.data.type == data_stack){
-		fprintf(output_file, "lw $t1, %d($sp)\n", -(int) index.data.stack_pos);
+		fileprint(output_file, "lw $t1, %d($sp)\n", get_stack_pos(index.data));
 		if(type_size(&address_type, 0) == 4){
-			fprintf(output_file, "sll $t1, $t1, 2\n");
+			fileprint(output_file, "sll $t1, $t1, 2\n");
 		} else if(type_size(&address_type, 0) != 1){
-			fprintf(output_file, "li $t0, %d\n", (int) type_size(&address_type, 0));
-			fprintf(output_file, "mult $t1, $t0\n");
-			fprintf(output_file, "mflo $t1\n");
+			fileprint(output_file, "li $t0, %d\n", (int) type_size(&address_type, 0));
+			fileprint(output_file, "mult $t1, $t0\n");
+			fileprint(output_file, "mflo $t1\n");
 		}
 		if(address->data.type == data_register){
-			fprintf(output_file, "add $s%d, $s%d, $t1\n", address->data.reg, address->data.reg);
+			fileprint(output_file, "add $s%d, $s%d, $t1\n", address->data.reg, address->data.reg);
 			if(dereference && peek_type(&address_type) != type_list){
 				if(type_size(&address_type, 0) == 4){
-					fprintf(output_file, "lw $s%d, 0($s%d)\n", address->data.reg, address->data.reg);
+					fileprint(output_file, "lw $s%d, 0($s%d)\n", address->data.reg, address->data.reg);
 				} else if(type_size(&address_type, 0) == 1){
-					fprintf(output_file, "lb $s%d, 0($s%d)\n", address->data.reg, address->data.reg);
+					fileprint(output_file, "lb $s%d, 0($s%d)\n", address->data.reg, address->data.reg);
 				}
 			}
 		} else if(address->data.type == data_stack){
-			fprintf(output_file, "lw $t0, %d($sp)\n", -(int) address->data.stack_pos);
-			fprintf(output_file, "add $t0, $t0, $t1\n");
+			fileprint(output_file, "lw $t0, %d($sp)\n", get_stack_pos(address->data));
+			fileprint(output_file, "add $t0, $t0, $t1\n");
 			if(dereference && peek_type(&address_type) != type_list){
 				if(type_size(&address_type, 0) == 4){
-					fprintf(output_file, "lw $t0, 0($t0)\n");
+					fileprint(output_file, "lw $t0, 0($t0)\n");
 				} else if(type_size(&address_type, 0) == 1){
-					fprintf(output_file, "lb $t0, 0($t0)\n");
+					fileprint(output_file, "lb $t0, 0($t0)\n");
 				}
 			}
-			fprintf(output_file, "sw $t0, %d($sp)\n", -(int) address->data.stack_pos);
+			fileprint(output_file, "sw $t0, %d($sp)\n", get_stack_pos(address->data));
 		}
 	}
 	deallocate(index.data);
@@ -972,12 +993,13 @@ void compile_string(value *output, char **c, unsigned char dereference, unsigned
 
 	output->data = allocate(force_stack);
 	if(output->data.type == data_register){
-		fprintf(output_file, "la $s%d, __str%d\n", output->data.reg, current_string);
+		fileprint(output_file, "la $s%d, __str%d\n", output->data.reg, current_string);
 	} else if(output->data.type == data_stack){
-		fprintf(output_file, "la $t0, __str%d\n", current_string);
-		fprintf(output_file, "sw $t0, %d($sp)\n", -(int) output->data.stack_pos);
+		fileprint(output_file, "la $t0, __str%d\n", current_string);
+		fileprint(output_file, "sw $t0, %d($sp)\n", get_stack_pos(output->data));
 	}
-	current_string++;
+	if(do_print)
+		current_string++;
 	output->data_type = CHAR_TYPE;
 	add_type_entry(&(output->data_type), type_pointer);
 	output->is_reference = 0;
@@ -1014,54 +1036,75 @@ void compile_character(value *output, char **c, unsigned char dereference, unsig
 
 	output->data = allocate(force_stack);
 	if(output->data.type == data_register){
-		fprintf(output_file, "li $s%d, %d\n", output->data.reg, char_constant);
+		fileprint(output_file, "li $s%d, %d\n", output->data.reg, char_constant);
 	} else if(output->data.type == data_stack){
-		fprintf(output_file, "li $t0, %d\n", char_constant);
-		fprintf(output_file, "sw $t0, %d($sp)\n", -(int) output->data.stack_pos);
+		fileprint(output_file, "li $t0, %d\n", char_constant);
+		fileprint(output_file, "sw $t0, %d($sp)\n", get_stack_pos(output->data));
 	}
 	output->data_type = INT_TYPE;
 	output->is_reference = 0;
 }
 
 void compile_logical_not(value *v, FILE *output_file){
+	int size;
+
 	if(v->data.type == data_register){
-		fprintf(output_file, "seq $s%d, $s%d, $zero\n", v->data.reg, v->data.reg);
+		fileprint(output_file, "seq $s%d, $s%d, $zero\n", v->data.reg, v->data.reg);
 	} else if(v->data.type == data_stack){
-		fprintf(output_file, "lw $t0, %d($sp)\n", -(int) v->data.stack_pos);
-		fprintf(output_file, "seq $t0, $t0, $zero\n");
-		fprintf(output_file, "sw $t0, %d($sp)\n", -(int) v->data.stack_pos);
+		size = type_size(&(v->data_type), 0);
+		if(size == 4){
+			fileprint(output_file, "lw $t0, %d($sp)\n", get_stack_pos(v->data));
+		} else if(size == 1){
+			fileprint(output_file, "lb $t0, %d($sp)\n", get_stack_pos(v->data));
+		}
+		fileprint(output_file, "seq $t0, $t0, $zero\n");
+		fileprint(output_file, "sw $t0, %d($sp)\n", get_stack_pos(v->data));
 	}
 
 	v->data_type = INT_TYPE;
 }
 
 void compile_not(value *v, FILE *output_file){
+	int size;
+
 	if(!types_equal(&(v->data_type), &INT_TYPE) && !types_equal(&(v->data_type), &CHAR_TYPE)){
 		snprintf(error_message, sizeof(error_message), "Can't perform bitwise not of non-numerical type");
 		do_error(1);
 	}
 	if(v->data.type == data_register){
-		fprintf(output_file, "nor $s%d, $s%d, $s%d\n", v->data.reg, v->data.reg, v->data.reg);
+		fileprint(output_file, "nor $s%d, $s%d, $s%d\n", v->data.reg, v->data.reg, v->data.reg);
 	} else if(v->data.type == data_stack){
-		fprintf(output_file, "lw $t0, %d($sp)\n", -(int) v->data.stack_pos);
-		fprintf(output_file, "nor $t0, $t0, $t0\n");
-		fprintf(output_file, "sw $t0, %d($sp)\n", -(int) v->data.stack_pos);
+		size = type_size(&(v->data_type), 0);
+		if(size == 4){
+			fileprint(output_file, "lw $t0, %d($sp)\n", get_stack_pos(v->data));
+		} else if(size == 1){
+			fileprint(output_file, "lb $t0, %d($sp)\n", get_stack_pos(v->data));
+		}
+		fileprint(output_file, "nor $t0, $t0, $t0\n");
+		fileprint(output_file, "sw $t0, %d($sp)\n", get_stack_pos(v->data));
 	}
 
 	v->data_type = INT_TYPE;
 }
 
 void compile_negate(value *v, FILE *output_file){
+	int size;
+
 	if(!types_equal(&(v->data_type), &INT_TYPE) && !types_equal(&(v->data_type), &CHAR_TYPE)){
 		snprintf(error_message, sizeof(error_message), "Can't negate non-numerical type");
 		do_error(1);
 	}
 	if(v->data.type == data_register){
-		fprintf(output_file, "sub $s%d, $zero, $s%d\n", v->data.reg, v->data.reg);
+		fileprint(output_file, "sub $s%d, $zero, $s%d\n", v->data.reg, v->data.reg);
 	} else if(v->data.type == data_stack){
-		fprintf(output_file, "lw $t0, %d($sp)\n", -(int) v->data.stack_pos);
-		fprintf(output_file, "sub $t0, $zero, $t0\n");
-		fprintf(output_file, "sw $t0, %d($sp)\n", -(int) v->data.stack_pos);
+		size = type_size(&(v->data_type), 0);
+		if(size == 4){
+			fileprint(output_file, "lw $t0, %d($sp)\n", get_stack_pos(v->data));
+		} else if(size == 1){
+			fileprint(output_file, "lb $t0, %d($sp)\n", get_stack_pos(v->data));
+		}
+		fileprint(output_file, "sub $t0, $zero, $t0\n");
+		fileprint(output_file, "sw $t0, %d($sp)\n", get_stack_pos(v->data));
 	}
 
 	v->data_type = INT_TYPE;
@@ -1340,9 +1383,9 @@ void compile_operation(value *first_value, value *next_value, operation op, FILE
 	} else if(first_value->data.type == data_stack){
 		reg0_str = "$t0";
 		if(type_size(&(first_value->data_type), 0) == 4){
-			fprintf(output_file, "lw $t0, %d($sp)\n", -(int) first_value->data.stack_pos);
+			fileprint(output_file, "lw $t0, %d($sp)\n", get_stack_pos(first_value->data));
 		} else if(type_size(&(first_value->data_type), 0) == 1){
-			fprintf(output_file, "lb $t0, %d($sp)\n", -(int) first_value->data.stack_pos);
+			fileprint(output_file, "lb $t0, %d($sp)\n", get_stack_pos(first_value->data));
 		} else {
 			snprintf(error_message, sizeof(error_message), "[INTERNAL] Unusable type size %d", type_size(&(first_value->data_type), 0));
 			do_error(1);
@@ -1354,9 +1397,9 @@ void compile_operation(value *first_value, value *next_value, operation op, FILE
 	} else if(next_value->data.type == data_stack){
 		reg1_str = "$t1";
 		if(type_size(&(next_value->data_type), 0) == 4){
-			fprintf(output_file, "lw $t1, %d($sp)\n", -(int) next_value->data.stack_pos);
+			fileprint(output_file, "lw $t1, %d($sp)\n", get_stack_pos(next_value->data));
 		} else if(type_size(&(next_value->data_type), 0) == 1){
-			fprintf(output_file, "lb $t1, %d($sp)\n", -(int) next_value->data.stack_pos);
+			fileprint(output_file, "lb $t1, %d($sp)\n", get_stack_pos(next_value->data));
 		} else {
 			snprintf(error_message, sizeof(error_message), "[INTERNAL] Unusable type size %d", type_size(&(next_value->data_type), 0));
 			do_error(1);
@@ -1366,9 +1409,9 @@ void compile_operation(value *first_value, value *next_value, operation op, FILE
 	deallocate(next_value->data);
 	if(first_value->data.type == data_stack){
 		if(type_size(&output_type, 0) == 4){
-			fprintf(output_file, "sw $t0, %d($sp)\n", -(int) first_value->data.stack_pos);
+			fileprint(output_file, "sw $t0, %d($sp)\n", get_stack_pos(first_value->data));
 		} else if(type_size(&output_type, 0) == 1){
-			fprintf(output_file, "sb $t0, %d($sp)\n", -(int) first_value->data.stack_pos);
+			fileprint(output_file, "sb $t0, %d($sp)\n", get_stack_pos(first_value->data));
 		} else {
 			snprintf(error_message, sizeof(error_message), "[INTERNAL] Unusable type size %d", type_size(&output_type, 0));
 			do_error(1);
@@ -1397,23 +1440,23 @@ static void compile_expression_recursive(value *first_value, char **c, FILE *out
 		num_labels++;
 		cast(first_value, INT_TYPE, 1, output_file);
 		if(first_value->data.type == data_register){
-			fprintf(output_file, "sne $s%d, $s%d, $zero\n", first_value->data.reg, first_value->data.reg);
-			fprintf(output_file, "bne $s%d, $zero, __L%d\n", first_value->data.reg, label_num);
+			fileprint(output_file, "sne $s%d, $s%d, $zero\n", first_value->data.reg, first_value->data.reg);
+			fileprint(output_file, "bne $s%d, $zero, __L%d\n", first_value->data.reg, label_num);
 		} else if(first_value->data.type == data_stack){
-			fprintf(output_file, "lw $t0, %d($sp)\n", -(int) first_value->data.stack_pos);
-			fprintf(output_file, "sne $t0, $t0, $zero\n");
-			fprintf(output_file, "sw $t0, %d($sp)\n", -(int) first_value->data.stack_pos);
-			fprintf(output_file, "bne $t0, $zero, __L%d\n", label_num);
+			fileprint(output_file, "lw $t0, %d($sp)\n", get_stack_pos(first_value->data));
+			fileprint(output_file, "sne $t0, $t0, $zero\n");
+			fileprint(output_file, "sw $t0, %d($sp)\n", get_stack_pos(first_value->data));
+			fileprint(output_file, "bne $t0, $zero, __L%d\n", label_num);
 		}
 	} else if(current_operation == operation_logical_and){
 		label_num = num_labels;
 		num_labels++;
 		cast(first_value, INT_TYPE, 1, output_file);
 		if(first_value->data.type == data_register){
-			fprintf(output_file, "beq $s%d, $zero, __L%d\n", first_value->data.reg, label_num);
+			fileprint(output_file, "beq $s%d, $zero, __L%d\n", first_value->data.reg, label_num);
 		} else if(first_value->data.type == data_stack){
-			fprintf(output_file, "lw $t0, %d($sp)\n", -(int) first_value->data.stack_pos);
-			fprintf(output_file, "beq $t0, $zero, __L%d\n", label_num);
+			fileprint(output_file, "lw $t0, %d($sp)\n", get_stack_pos(first_value->data));
+			fileprint(output_file, "beq $t0, $zero, __L%d\n", label_num);
 		}
 	}
 
@@ -1441,24 +1484,24 @@ static void compile_expression_recursive(value *first_value, char **c, FILE *out
 	} else if(current_operation == operation_logical_or || current_operation == operation_logical_and){
 		cast(&next_value, INT_TYPE, 1, output_file);
 		if(next_value.data.type == data_register){
-			fprintf(output_file, "sne $s%d, $s%d, $zero\n", next_value.data.reg, next_value.data.reg);
+			fileprint(output_file, "sne $s%d, $s%d, $zero\n", next_value.data.reg, next_value.data.reg);
 			if(first_value->data.type == data_register){
-				fprintf(output_file, "move $s%d, $s%d\n", first_value->data.reg, next_value.data.reg);
+				fileprint(output_file, "move $s%d, $s%d\n", first_value->data.reg, next_value.data.reg);
 			} else if(first_value->data.type == data_stack){
-				fprintf(output_file, "sw $s%d, %d($sp)\n", next_value.data.reg, -(int) first_value->data.stack_pos);
+				fileprint(output_file, "sw $s%d, %d($sp)\n", next_value.data.reg, get_stack_pos(first_value->data));
 			}
 		} else if(next_value.data.type == data_stack){
 			if(first_value->data.type == data_register){
-				fprintf(output_file, "lw $s%d, %d($sp)\n", first_value->data.reg, -(int) next_value.data.stack_pos);
-				fprintf(output_file, "sne $s%d, $s%d, $zero\n", first_value->data.reg, first_value->data.reg);
+				fileprint(output_file, "lw $s%d, %d($sp)\n", first_value->data.reg, get_stack_pos(next_value.data));
+				fileprint(output_file, "sne $s%d, $s%d, $zero\n", first_value->data.reg, first_value->data.reg);
 			} else if(first_value->data.type == data_stack){
-				fprintf(output_file, "lw $t0, %d($sp)\n", -(int) next_value.data.stack_pos);
-				fprintf(output_file, "sne $t0, $t0, $zero\n");
-				fprintf(output_file, "sw $t0, %d($sp)\n", -(int) first_value->data.stack_pos);
+				fileprint(output_file, "lw $t0, %d($sp)\n", get_stack_pos(next_value.data));
+				fileprint(output_file, "sne $t0, $t0, $zero\n");
+				fileprint(output_file, "sw $t0, %d($sp)\n", get_stack_pos(first_value->data));
 			}
 		}
 		deallocate(next_value.data);
-		fprintf(output_file, "\n__L%d:\n", label_num);
+		fileprint(output_file, "\n__L%d:\n", label_num);
 	} else {
 		compile_operation(first_value, &next_value, current_operation, output_file);
 	}
@@ -1486,3 +1529,30 @@ void compile_expression(value *first_value, char **c, unsigned char dereference,
 	}
 }
 
+void determine_stack_size(value *first_value, char **c, unsigned char dereference, unsigned char force_stack){
+	char *temp_c;
+
+	do_print = 0;
+	saved_stack_size = 0;
+	temp_c = *c;
+	compile_expression(first_value, c, dereference, force_stack, NULL);
+	*c = temp_c;
+	do_print = 1;
+}
+
+void compile_root_expression(value *first_value, char **c, unsigned char dereference, unsigned char force_stack, FILE *output_file){
+	determine_stack_size(first_value, c, dereference, force_stack);
+	deallocate(first_value->data);
+	fprintf(output_file, "addi $sp, $sp, %d\n", -saved_stack_size);
+	compile_expression(first_value, c, dereference, force_stack, output_file);
+}
+
+//THIS MUST ALWAYS BE CALLED AFTER COMPILE_ROOT_EXPRESSION IS RUN AGAIN!
+//It is not included in compile_root_expression just in case the caller wants to first cast the return value of compile_root_expression
+//If compile_root_expression did do that, then such a cast either would not work or would be past the bounds of the stack
+void reset_stack_pos(value *first_value, FILE *output_file){
+	if(first_value->data.type == data_stack){
+		fprintf(output_file, "lw $t0, %d($sp)\n", get_stack_pos(first_value->data));
+	}
+	fprintf(output_file, "addi $sp, $sp, %d\n", saved_stack_size);
+}
