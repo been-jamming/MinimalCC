@@ -735,16 +735,22 @@ void compile_function_call(char **c, value *func, FILE *output_file){
 		fileprint(output_file, "lw $t0, %d($sp)\n", func_stack_pos);
 		if(any_args)
 			fileprint(output_file, "addi $sp, $sp, %d\n", get_stack_pos(current_argument_value.data));
+		else
+			fileprint(output_file, "addi $sp, $sp, %d\n", get_stack_pos(return_data));
 		fileprint(output_file, "jr $t0\n\n");
 	} else if(func->data.type == data_stack){
 		fileprint(output_file, "lw $t0, %d($sp)\n", get_stack_pos(func->data));
 		if(any_args)
 			fileprint(output_file, "addi $sp, $sp, %d\n", get_stack_pos(current_argument_value.data));
+		else
+			fileprint(output_file, "addi $sp, $sp, %d\n", get_stack_pos(return_data));
 		fileprint(output_file, "jr $t0\n\n");
 	}
 	fileprint(output_file, "__L%d:\n", label_num);
 	if(any_args)
 		fileprint(output_file, "addi $sp, $sp, %d\n", -get_stack_pos(current_argument_value.data));
+	else
+		fileprint(output_file, "addi $sp, $sp, %d\n", -get_stack_pos(return_data));
 	fileprint(output_file, "lw $t0, %d($sp)\n", get_stack_pos(return_data));
 	deallocate(return_data);
 	deallocate(return_address_data);
