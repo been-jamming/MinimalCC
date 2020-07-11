@@ -1,8 +1,9 @@
 #include <stdio.h>
 #include "allocate.h"
 
-unsigned int stack_size = 0;
-unsigned int variables_size = 0;
+int stack_size = 0;
+int variables_size = 0;
+int saved_stack_size = 0;
 reg_list register_list;
 
 void initialize_register_list(){
@@ -35,6 +36,10 @@ data_entry allocate(unsigned char force_stack){
 		register_list.num_allocated++;
 	}
 
+	if(stack_size > saved_stack_size){
+		saved_stack_size = stack_size;
+	}
+
 	return output;
 }
 
@@ -54,9 +59,21 @@ void deallocate(data_entry entry){
 	}
 }
 
+int get_stack_pos(data_entry entry){
+	if(entry.type == data_stack){
+		return saved_stack_size - entry.stack_pos - 4;
+	}
+
+	return -1;
+}
+
 static void store_register(unsigned char reg, FILE *output_file){
-	fprintf(output_file, "sw $s%d, %d($sp)\n", (int) reg, -(int) stack_size);
+	if(output_file)
+		fprintf(output_file, "sw $s%d, %d($sp)\n", (int) reg, saved_stack_size - stack_size - 4);
 	stack_size += 4;
+	if(stack_size > saved_stack_size){
+		saved_stack_size = stack_size;
+	}
 }
 
 reg_list push_registers(FILE *output_file){
@@ -76,12 +93,13 @@ int get_reg_stack_pos(reg_list regs, unsigned char reg){
 	int index;
 
 	index = regs.positions[reg];
-	return stack_size - REGISTER_SIZE*(index + 1);
+	return saved_stack_size - stack_size + REGISTER_SIZE*(index + 1) - 4;
 }
 
 static void load_register(unsigned char reg, FILE *output_file){
 	stack_size -= 4;
-	fprintf(output_file, "lw $s%d, %d($sp)\n", (int) reg, -(int) stack_size);
+	if(output_file)
+		fprintf(output_file, "lw $s%d, %d($sp)\n", (int) reg, saved_stack_size - stack_size - 4);
 }
 
 void pull_registers(reg_list regs, FILE *output_file){

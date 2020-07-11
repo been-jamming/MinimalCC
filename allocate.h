@@ -22,19 +22,21 @@ typedef struct data_entry data_entry;
 struct data_entry{
 	data_entry_type type;
 	union{
-		unsigned int reg;
-		unsigned int stack_pos;
+		int reg;
+		int stack_pos;
 	};
 	unsigned int prev_stack_size;
 };
 
-extern unsigned int stack_size;
-extern unsigned int variables_size;
+extern int stack_size;
+extern int variables_size;
+extern int saved_stack_size;
 extern reg_list register_list;
 
 void initialize_register_list();
 data_entry allocate(unsigned char force_stack);
 void deallocate(data_entry entry);
+int get_stack_pos(data_entry entry);
 reg_list push_registers(FILE *output_file);
 int get_reg_stack_pos(reg_list regs, unsigned char reg);
 void pull_registers(reg_list regs, FILE *output_file);
