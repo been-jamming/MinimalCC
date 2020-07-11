@@ -15,7 +15,7 @@ unsigned int num_labels = 0;
 unsigned int current_string = 0;
 static unsigned int order_of_operations[] = {0, 9, 9, 10, 10, 1, 7, 7, 7, 7, 6, 6, 5, 4, 9, 3, 2, 8, 8};
 
-static unsigned char do_print;
+unsigned char do_print;
 
 //Wrapper to fprintf to control whether we actually write to a file
 void fileprint(FILE *fp, const char *format, ...){

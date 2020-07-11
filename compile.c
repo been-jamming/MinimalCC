@@ -54,9 +54,11 @@ static void print_line(){
 }
 
 void do_warning(){
-	warning_message[255] = '\0';
-	print_line();
-	fprintf(stderr, "Warning: %s\n", warning_message);
+	if(do_print){
+		warning_message[255] = '\0';
+		print_line();
+		fprintf(stderr, "Warning: %s\n", warning_message);
+	}
 }
 
 void do_error(int status){
@@ -539,7 +541,7 @@ int main(int argc, char **argv){
 
 	if(argc < 2){
 		printf("Minimal C Compiler for MIPS\nby Ben Jones\n2/29/2020\n");
-		exit(1);
+		return 0;
 	}
 	parse_arguments(argc, argv, source_files, MAX_SOURCEFILES - 1, &output_filename);
 	if(!output_filename){

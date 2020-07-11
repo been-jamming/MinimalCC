@@ -70,3 +70,4 @@ void reset_stack_pos(value *first_value, FILE *output_file);
 
 extern unsigned int scopes[MAX_SCOPE];
 extern int current_scope;
+extern unsigned char do_print;

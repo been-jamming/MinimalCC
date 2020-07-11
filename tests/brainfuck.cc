@@ -10,20 +10,20 @@ void printc(char);
 char inputc();
 void prints(char *);
 
-char input_program[20000];
-char data[20000];
+char input_program[200000];
+char data[200000];
 char *data_pointer;
 
 void initialize(){
 	int i;
 
 	i = 0;
-	while(i < 20000){
+	while(i < 200000){
 		data[i] = 0;
 		input_program[i] = 0;
 		i = i + 1;
 	}
-	data_pointer = data + 10000;
+	data_pointer = data + 100000;
 }
 
 char *match_bracket(char *program){

@@ -1,13 +1,12 @@
 .globl main
 main:
 	la $t0, __return_here
-	sw $ra, 4($sp)
-	sw $t0, 0($sp)
+	sw $t0, 4($sp)
 	j entry
 
 __return_here:
-	lw $ra, 4($sp)
-	jr $ra
+	li $v0, 10
+	syscall
 .globl inputd
 inputd:
 	li $v0, 5
