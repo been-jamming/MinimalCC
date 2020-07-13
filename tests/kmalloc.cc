@@ -1,4 +1,7 @@
 void **_kmalloc_heap;
+int POINTER_SIZE;
+int INT_SIZE;
+int CHAR_SIZE;
 
 void kmalloc_init(void *heap, int heap_size){
 	//malloc doesn't have a free, so we don't need a de-init
@@ -7,7 +10,10 @@ void kmalloc_init(void *heap, int heap_size){
 	_kmalloc_heap[1] = (void *) 0;
 	((int *) _kmalloc_heap)[2] = heap_size;
 	((int *) _kmalloc_heap)[3] = 1;
-	return;
+	//Initialize data type size constants (can vary for different platforms)
+	POINTER_SIZE = 4;
+	INT_SIZE = 4;
+	CHAR_SIZE = 1;
 }
 
 void *kmalloc(int size){
@@ -61,7 +67,7 @@ void kfree(void *p){
 
 	block = (void **) p - 4;
 	((int *) block)[3] = 1;
-	_kmalloc_merge_left(block);
 	_kmalloc_merge_right(block);
+	_kmalloc_merge_left(block);
 }
 
