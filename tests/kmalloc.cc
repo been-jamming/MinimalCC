@@ -4,9 +4,6 @@ int INT_SIZE;
 int POINTER_SIZE;
 int CHAR_SIZE;
 
-void prints(char *);
-void printd(int);
-
 void kmalloc_init(void *heap, int heap_size){
 	_kmalloc_heap = heap;
 	_kmalloc_end = (void **) heap + (heap_size>>2) - 3;
