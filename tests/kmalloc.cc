@@ -4,6 +4,9 @@ int INT_SIZE;
 int POINTER_SIZE;
 int CHAR_SIZE;
 
+void prints(char *);
+void printd(int);
+
 void kmalloc_init(void *heap, int heap_size){
 	_kmalloc_heap = heap;
 	_kmalloc_end = (void **) heap + (heap_size>>2) - 3;
@@ -19,10 +22,21 @@ void kmalloc_init(void *heap, int heap_size){
 	CHAR_SIZE = 4;
 }
 
+void _kmalloc_merge(void **block){
+	void **next_block;
+
+	if(!(int) block[2]){
+		while(!(int) ((void **) block[1])[2]){
+			next_block = block[1];
+			block[1] = next_block[1];
+			((void **) block[1])[0] = block;
+		}
+	}
+}
+
 void *kmalloc(int size){
 	void **block;
 	void **new_block;
-	int block_size;
 
 	if(size&3)
 		size = (size>>2) + 1;
@@ -32,33 +46,22 @@ void *kmalloc(int size){
 	block = _kmalloc_heap;
 
 	while((int) block[1]){
-		if(!(int) block[2] && (void **) block[1] - block - 3 >= size){
-			block[2] = (void *) 1;
-			new_block = block + 3 + size;
+		if(!(int) block[2] && (void **) block[1] - block - 6 >= size){
+			new_block = block + size + 3;
 			new_block[0] = block;
 			new_block[1] = block[1];
 			new_block[2] = (void *) 0;
+
 			block[1] = new_block;
-			((void **) new_block[1])[0] = new_block;
+			block[2] = (void *) 1;
 
 			return block + 3;
 		}
+
 		block = block[1];
 	}
 
 	return (void *) 0;
-}
-
-void _kmalloc_merge_up(void **block){
-	while((int) block[0] && !(int) ((void **) block[0])[2]){
-		((void **) block[0])[1] = block[1];
-		block = block[0];
-	}
-}
-
-void _kmalloc_merge_down(void **block){
-	while((int) block[1] < (int) _kmalloc_end && !(int) ((void **) block[1])[2])
-		block[1] = ((void **) block[1])[1];
 }
 
 void kfree(void *p){
@@ -66,6 +69,5 @@ void kfree(void *p){
 
 	block = (void **) p - 3;
 	block[2] = (void *) 0;
-	_kmalloc_merge_down(block);
-	_kmalloc_merge_up(block);
 }
+
