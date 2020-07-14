@@ -43,6 +43,8 @@ void *kmalloc(int size){
 	block = _kmalloc_heap;
 
 	while((int) block[1]){
+		_kmalloc_merge(block);
+
 		if(!(int) block[2] && (void **) block[1] - block - 6 >= size){
 			new_block = block + size + 3;
 			new_block[0] = block;
