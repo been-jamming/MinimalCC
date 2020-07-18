@@ -858,44 +858,6 @@ void compile_list_index(char **c, value *address, unsigned char dereference, FIL
 
 void match_brackets(char **c);
 
-void match_parentheses(char **c){
-	while(**c && **c != ')' && **c != ']'){
-		if(**c == '('){
-			++*c;
-			match_parentheses(c);
-		} else if(**c == '['){
-			++*c;
-			match_brackets(c);
-		} else {
-			++*c;
-		}
-	}
-	if(!**c || **c == ']'){
-		snprintf(error_message, sizeof(error_message), "Expected ')'");
-		do_error(1);
-	}
-	++*c;
-}
-
-void match_brackets(char **c){
-	while(**c && **c != ']' && **c != ')'){
-		if(**c == '('){
-			++*c;
-			match_parentheses(c);
-		} else if(**c == '['){
-			++*c;
-			match_brackets(c);
-		} else {
-			++*c;
-		}
-	}
-	if(!**c || **c == ')'){
-		snprintf(error_message, sizeof(error_message), "Expected ']'");
-		do_error(1);
-	}
-	++*c;
-}
-
 void skip_string(char **c){
 	while(**c && **c != '\"'){
 		if(**c == '\\'){
@@ -907,6 +869,58 @@ void skip_string(char **c){
 	if(**c){
 		++*c;
 	}
+}
+
+void match_parentheses(char **c){
+	while(**c && **c != ')' && **c != ']'){
+		if(**c == '"'){
+			++*c;
+			skip_string(c);
+			skip_whitespace(c);
+			continue;
+		}
+		if(**c == '('){
+			++*c;
+			match_parentheses(c);
+		} else if(**c == '['){
+			++*c;
+			match_brackets(c);
+		} else {
+			++*c;
+		}
+		skip_whitespace(c);
+	}
+	if(!**c || **c == ']'){
+		snprintf(error_message, sizeof(error_message), "Expected ')'");
+		do_error(1);
+	}
+	++*c;
+}
+
+void match_brackets(char **c){
+	while(**c && **c != ']' && **c != ')'){
+		if(**c == '"'){
+			++*c;
+			skip_string(c);
+			skip_whitespace(c);
+			continue;
+		}
+		if(**c == '('){
+			++*c;
+			match_parentheses(c);
+		} else if(**c == '['){
+			++*c;
+			match_brackets(c);
+		} else {
+			++*c;
+		}
+		skip_whitespace(c);
+	}
+	if(!**c || **c == ')'){
+		snprintf(error_message, sizeof(error_message), "Expected ']'");
+		do_error(1);
+	}
+	++*c;
 }
 
 void skip_comment(char **c){
