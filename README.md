@@ -53,5 +53,7 @@ We will build and execute a program which prints all of the primes less than 500
 - `else`
 - `for`
 - `return`
+- `break`
+- `continue`
 
 Note that due to the efficiency considerations, datatypes take up constant storage inside the compiler, which means that datatypes that are complicated enough can "overflow" the type system in the compiler. Currently there is no detection for this, but this is another thing I plan to add. It is also possible to modify the compiler to be able to parse even more complex datatypes, but it becomes a trade-off between flexibility and efficiency. Currently, almost any datatype a sane programmer would use will not overflow the type system for the compiler. Don't be mad at me for this decision; remember I am trying to make this capable of running on my calculator and able to compile programs fast. 

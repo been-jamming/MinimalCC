@@ -6,7 +6,6 @@
 #include "expression.h"
 #include "compile.h"
 
-unsigned int scopes[MAX_SCOPE];
 int current_scope;
 
 dictionary *local_variables[MAX_SCOPE];
@@ -1444,7 +1443,7 @@ static void compile_expression_recursive(value *first_value, char **c, FILE *out
 	} else if(current_operation == operation_logical_or){
 		label_num = num_labels;
 		num_labels++;
-		cast(first_value, INT_TYPE, 1, output_file);
+		cast(first_value, INT_TYPE, 0, output_file);
 		if(first_value->data.type == data_register){
 			fileprint(output_file, "sne $s%d, $s%d, $zero\n", first_value->data.reg, first_value->data.reg);
 			fileprint(output_file, "bne $s%d, $zero, __L%d\n", first_value->data.reg, label_num);
@@ -1457,7 +1456,7 @@ static void compile_expression_recursive(value *first_value, char **c, FILE *out
 	} else if(current_operation == operation_logical_and){
 		label_num = num_labels;
 		num_labels++;
-		cast(first_value, INT_TYPE, 1, output_file);
+		cast(first_value, INT_TYPE, 0, output_file);
 		if(first_value->data.type == data_register){
 			fileprint(output_file, "beq $s%d, $zero, __L%d\n", first_value->data.reg, label_num);
 		} else if(first_value->data.type == data_stack){
@@ -1488,7 +1487,7 @@ static void compile_expression_recursive(value *first_value, char **c, FILE *out
 		cast(&next_value, cast_to, 1, output_file);
 		compile_operation(first_value, &next_value, current_operation, output_file);
 	} else if(current_operation == operation_logical_or || current_operation == operation_logical_and){
-		cast(&next_value, INT_TYPE, 1, output_file);
+		cast(&next_value, INT_TYPE, 0, output_file);
 		if(next_value.data.type == data_register){
 			fileprint(output_file, "sne $s%d, $s%d, $zero\n", next_value.data.reg, next_value.data.reg);
 			if(first_value->data.type == data_register){

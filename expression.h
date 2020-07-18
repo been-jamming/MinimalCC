@@ -68,6 +68,5 @@ void compile_expression(value *first_value, char **c, unsigned char dereference,
 void compile_root_expression(value *first_value, char **c, unsigned char dereference, unsigned char force_stack, FILE *output_file);
 void reset_stack_pos(value *first_value, FILE *output_file);
 
-extern unsigned int scopes[MAX_SCOPE];
 extern int current_scope;
 extern unsigned char do_print;

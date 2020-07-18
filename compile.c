@@ -20,6 +20,10 @@ static char *source_files[MAX_SOURCEFILES] = {NULL};
 static char **current_source_file;
 static FILE *output_file;
 
+static int continue_label = -1;
+static int break_label = -1;
+static int loop_variables_size;
+
 char warning_message[256] = {0};
 char error_message[256] = {0};
 
@@ -252,6 +256,9 @@ void compile_statement(char **c, FILE *output_file){
 	unsigned int label_num1;
 	unsigned int label_num2;
 	unsigned int label_num3;
+	int prev_break_label;
+	int prev_continue_label;
+	int prev_loop_variables_size;
 
 	skip_whitespace(c);
 	if(!strncmp(*c, "if", 2) && !alphanumeric((*c)[2])){
@@ -305,6 +312,14 @@ void compile_statement(char **c, FILE *output_file){
 		label_num0 = num_labels;
 		label_num1 = num_labels + 1;
 		num_labels += 2;
+
+		prev_break_label = break_label;
+		prev_continue_label = continue_label;
+		prev_loop_variables_size = loop_variables_size;
+		break_label = label_num1;
+		continue_label = label_num0;
+		loop_variables_size = variables_size;
+
 		fprintf(output_file, "\n__L%d:\n", label_num0);
 		compile_root_expression(&expression_output, c, 1, 0, output_file);
 		cast(&expression_output, INT_TYPE, 0, output_file);
@@ -325,6 +340,10 @@ void compile_statement(char **c, FILE *output_file){
 		compile_statement(c, output_file);
 		fprintf(output_file, "j __L%d\n", label_num0);
 		fprintf(output_file, "\n__L%d:\n", label_num1);
+
+		loop_variables_size = prev_loop_variables_size;
+		break_label = prev_break_label;
+		continue_label = prev_continue_label;
 	} else if(!strncmp(*c, "for", 3) && !alphanumeric((*c)[3])){
 		*c += 3;
 		skip_whitespace(c);
@@ -338,6 +357,14 @@ void compile_statement(char **c, FILE *output_file){
 		label_num2 = num_labels + 2;
 		label_num3 = num_labels + 3;
 		num_labels += 4;
+
+		prev_break_label = break_label;
+		prev_continue_label = continue_label;
+		prev_loop_variables_size = loop_variables_size;
+		break_label = label_num1;
+		continue_label = label_num3;
+		loop_variables_size = variables_size;
+
 		skip_whitespace(c);
 		if(**c != ';'){
 			compile_root_expression(&expression_output, c, 1, 0, output_file);
@@ -386,6 +413,10 @@ void compile_statement(char **c, FILE *output_file){
 		skip_whitespace(c);
 		compile_statement(c, output_file);
 		fprintf(output_file, "j __L%d\n\n__L%d:\n", label_num3, label_num1);
+
+		loop_variables_size = prev_loop_variables_size;
+		break_label = prev_break_label;
+		continue_label = prev_continue_label;
 	} else if(!strncmp(*c, "return", 6) && !alphanumeric((*c)[6])){
 		*c += 6;
 		skip_whitespace(c);
@@ -414,6 +445,34 @@ void compile_statement(char **c, FILE *output_file){
 		fprintf(output_file, "addi $sp, $sp, %d\n", variables_size - num_args*4);
 		fprintf(output_file, "lw $ra, %d($sp)\n", 4 + num_args*4);
 		fprintf(output_file, "jr $ra\n");
+	} else if(!strncmp(*c, "break", 5) && !alphanumeric((*c)[5])){
+		*c += 5;
+		skip_whitespace(c);
+		if(**c != ';'){
+			snprintf(error_message, sizeof(error_message), "Expected ';' after break");
+			do_error(1);
+		}
+		if(break_label < 0){
+			snprintf(error_message, sizeof(error_message), "No loop to break out of");
+			do_error(1);
+		}
+		if(variables_size != loop_variables_size)
+			fprintf(output_file, "addi $sp, $sp, %d\n", variables_size - loop_variables_size);
+		fprintf(output_file, "j __L%d\n", break_label);
+	} else if(!strncmp(*c, "continue", 8) && !alphanumeric((*c)[8])){
+		*c += 8;
+		skip_whitespace(c);
+		if(**c != ';'){
+			snprintf(error_message, sizeof(error_message), "Expected ';' after continue");
+			do_error(1);
+		}
+		if(continue_label < 0){
+			snprintf(error_message, sizeof(error_message), "No loop to continue in");
+			do_error(1);
+		}
+		if(variables_size != loop_variables_size)
+			fprintf(output_file, "addi $sp, $sp, %d\n", variables_size - loop_variables_size);
+		fprintf(output_file, "j __L%d\n", continue_label);
 	} else if(**c == ';'){
 		//Empty statement, so pass
 		++*c;
