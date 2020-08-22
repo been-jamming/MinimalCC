@@ -766,6 +766,8 @@ int run_program(void *current_statement_list){
 	return 0;
 }
 
+int run_list(void **statement);
+
 int run_statement(void **statement){
 	if((int) statement[0] == PRINT)
 		return run_print(statement);
@@ -789,8 +791,37 @@ int run_statement(void **statement){
 		return run_gosub(statement);
 	else if((int) statement[0] == RETURN)
 		return run_return(statement);
+	else if((int) statement[0] == LIST)
+		return run_list(statement);
 	else
 		return 1;
+}
+
+void list_statement(void **statement){
+	if((int) statement[0] == PRINT)
+		list_print(statement);
+	else if((int) statement[0] == INPUT)
+		list_input(statement);
+	else if((int) statement[0] == RUN)
+		list_run(next_list(statement_list));
+	else if((int) statement[0] == END)
+		list_end(statement);
+	else if((int) statement[0] == IF)
+		list_if(statement);
+	else if((int) statement[0] == WHILE)
+		list_while(statement);
+	else if((int) statement[0] == LET)
+		list_let(statement);
+	else if((int) statement[0] == DIM)
+		list_dim(statement);
+	else if((int) statement[0] == GOTO)
+		list_goto(statement);
+	else if((int) statement[0] == GOSUB)
+		list_gosub(statement);
+	else if((int) statement[0] == RETURN)
+		list_return(statement);
+	else if((int) statement[0] == LIST)
+		list_list(statement);
 }
 
 void remove_line(int line_number){
@@ -807,6 +838,25 @@ void remove_line(int line_number){
 		}
 		current_statement_list = next_list(current_statement_list);
 	}
+}
+
+int run_list(void **statement){
+	void *current_statement_list;
+	void *current_statement;
+	int line;
+
+	current_statement_list = next_list(statement_list);
+	while(current_statement_list){
+		current_statement = get_list_value(current_statement_list);
+		line = ((int *) current_statement)[1];
+		printd(line);
+		prints(" ");
+		list_statement(((void **) current_statement)[0]);
+		prints("\n");
+		current_statement_list = next_list(current_statement_list);
+	}
+
+	return 0;
 }
 
 void insert_statement(void *statement, int line_number){
@@ -864,7 +914,7 @@ void entry(){
 	ERR_VAL = 0;
 	INT_VAL = 1;
 	STR_VAL = 2;
-	kmalloc_init(malloc(100000), 100000);
+	kmalloc_init(malloc(32000), 32000);
 
 	variables = create_dictionary((void *) 0);
 	statement_list = create_linked_list(&ERR_VAL);

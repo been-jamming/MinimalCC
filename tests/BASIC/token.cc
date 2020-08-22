@@ -35,6 +35,7 @@ int DIM;
 int GOSUB;
 int GOTO;
 int RETURN;
+int LIST;
 
 int error;
 
@@ -69,6 +70,7 @@ void init_tokens(){
 	GOSUB = 8;
 	GOTO = 9;
 	RETURN = 10;
+	LIST = 11;
 }
 
 int alpha(char c){
@@ -399,6 +401,61 @@ void free_expression(void *expr){
 	}
 }
 
+void list_expression(void *expr){
+	if(((int *) expr)[0] == INT_TOKEN){
+		printd(((int *) expr)[1]);
+	} else if(((int *) expr)[0] == STR_TOKEN){
+		prints("\"");
+		prints(((char **) expr)[1]);
+		prints("\"");
+	} else if(((int *) expr)[0] == VAR_TOKEN){
+		prints(((char **) expr)[1]);
+		if(((void **) expr)[2]){
+			prints("[");
+			list_expression(((void **) expr)[2]);
+			prints("]");
+		}
+	} else if(((int *) expr)[0] == PLUS){
+		prints("("); list_expression(((void **) expr)[1]); prints(")");
+		prints(" + ("); list_expression(((void **) expr)[2]); prints(")");
+	} else if(((int *) expr)[0] == MINUS){
+		prints("("); list_expression(((void **) expr)[1]); prints(")");
+		prints(" - ("); list_expression(((void **) expr)[2]); prints(")");
+	} else if(((int *) expr)[0] == MULTIPLY){
+		prints("("); list_expression(((void **) expr)[1]); prints(")");
+		prints(" * ("); list_expression(((void **) expr)[2]); prints(")");
+	} else if(((int *) expr)[0] == DIVIDE){
+		prints("("); list_expression(((void **) expr)[1]); prints(")");
+		prints(" / ("); list_expression(((void **) expr)[2]); prints(")");
+	} else if(((int *) expr)[0] == EQUALS){
+		prints("("); list_expression(((void **) expr)[1]); prints(")");
+		prints(" = ("); list_expression(((void **) expr)[2]); prints(")");
+	} else if(((int *) expr)[0] == NOT_EQUALS){
+		prints("("); list_expression(((void **) expr)[1]); prints(")");
+		prints(" != ("); list_expression(((void **) expr)[2]); prints(")");
+	} else if(((int *) expr)[0] == GREATER_THAN){
+		prints("("); list_expression(((void **) expr)[1]); prints(")");
+		prints(" > ("); list_expression(((void **) expr)[2]); prints(")");
+	} else if(((int *) expr)[0] == LESS_THAN){
+		prints("("); list_expression(((void **) expr)[1]); prints(")");
+		prints(" < ("); list_expression(((void **) expr)[2]); prints(")");
+	} else if(((int *) expr)[0] == AND){
+		prints("("); list_expression(((void **) expr)[1]); prints(")");
+		prints(" & ("); list_expression(((void **) expr)[2]); prints(")");
+	} else if(((int *) expr)[0] == OR){
+		prints("("); list_expression(((void **) expr)[1]); prints(")");
+		prints(" | ("); list_expression(((void **) expr)[2]); prints(")");
+	} else if(((int *) expr)[0] == SUBSTRING){
+		prints("SUBSTR(");
+		list_expression(((void **) expr)[1]);
+		prints(", ");
+		list_expression(((void **) expr)[2]);
+		prints(", ");
+		list_expression(((void **) expr)[3]);
+		prints(")");
+	}
+}
+
 void **parse_print(char **c){
 	void **output;
 
@@ -419,6 +476,11 @@ void **parse_print(char **c){
 	return output;
 }
 
+void list_print(void **statement){
+	prints("PRINT ");
+	list_expression(statement[1]);
+}
+
 void **parse_input(char **c){
 	void **output;
 
@@ -436,6 +498,11 @@ void **parse_input(char **c){
 	}
 
 	return output;
+}
+
+void list_input(void **statement){
+	prints("INPUT ");
+	list_expression(statement[1]);
 }
 
 void **parse_let(char **c){
@@ -465,6 +532,13 @@ void **parse_let(char **c){
 	}
 
 	return output;
+}
+
+void list_let(void **statement){
+	prints("LET ");
+	list_expression(statement[1]);
+	prints(" = ");
+	list_expression(statement[2]);
 }
 
 void **parse_dim(char **c){
@@ -497,6 +571,13 @@ void **parse_dim(char **c){
 	return output;
 }
 
+void list_dim(void **statement){
+	prints("DIM ");
+	list_expression(statement[1]);
+	prints(", ");
+	list_expression(statement[2]);
+}
+
 void **parse_if(char **c){
 	void **output;
 
@@ -515,6 +596,11 @@ void **parse_if(char **c){
 	}
 
 	return output;
+}
+
+void list_if(void **statement){
+	prints("IF ");
+	list_expression(statement[1]);
 }
 
 void **parse_goto(char **c){
@@ -537,6 +623,11 @@ void **parse_goto(char **c){
 	return output;
 }
 
+void list_goto(void **statement){
+	prints("GOTO ");
+	list_expression(statement[1]);
+}
+
 void **parse_gosub(char **c){
 	void **output;
 
@@ -555,6 +646,11 @@ void **parse_gosub(char **c){
 	}
 
 	return output;
+}
+
+void list_gosub(void **statement){
+	prints("GOSUB ");
+	list_expression(statement[1]);
 }
 
 void **parse_while(char **c){
@@ -577,6 +673,11 @@ void **parse_while(char **c){
 	return output;
 }
 
+void list_while(void **statement){
+	prints("WHILE ");
+	list_expression(statement[1]);
+}
+
 void **parse_run(char **c){
 	void **output;
 
@@ -587,6 +688,10 @@ void **parse_run(char **c){
 	output[0] = (void *) RUN;
 
 	return output;
+}
+
+void list_run(void **statement){
+	prints("RUN");
 }
 
 void **parse_end(char **c){
@@ -618,6 +723,16 @@ void **parse_end(char **c){
 	return output;
 }
 
+void list_end(void **statement){
+	if(statement[1] == (void *) IF){
+		prints("END IF");
+	} else if(statement[1] == (void *) WHILE){
+		prints("END WHILE");
+	} else {
+		prints("END");
+	}
+}
+
 void **parse_return(char **c){
 	void **output;
 
@@ -629,6 +744,27 @@ void **parse_return(char **c){
 	}
 
 	return (void **) 0;
+}
+
+void list_return(void **statement){
+	prints("RETURN");
+}
+
+void **parse_list(char **c){
+	void **output;
+
+	skip_whitespace(c);
+	if(!**c){
+		output = kmalloc(POINTER_SIZE);
+		output[0] = (void *) LIST;
+		return output;
+	}
+
+	return (void **) 0;
+}
+
+void list_list(void **statement){
+	prints("LIST");
 }
 
 void **get_statement(char **c){
@@ -657,6 +793,8 @@ void **get_statement(char **c){
 		return parse_gosub(c);
 	else if(!strcmp(buffer, "RETURN"))
 		return parse_return(c);
+	else if(!strcmp(buffer, "LIST"))
+		return parse_list(c);
 	else
 		return (void **) 0;
 }
@@ -694,6 +832,8 @@ void free_statement(void **statement){
 		kfree(statement);
 	} else if((int) statement[0] == GOSUB){
 		free_expression(statement[1]);
+		kfree(statement);
+	} else if((int) statement[0] == LIST){
 		kfree(statement);
 	}
 }

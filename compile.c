@@ -531,6 +531,7 @@ void compile_string_constants(char *c, FILE *output_file){
 	unsigned char ignore;
 
 	ignore = 0;
+	skip_whitespace(&c);
 	while(*c){
 		if(ignore || *c != '"'){
 			ignore = 0;
@@ -548,6 +549,7 @@ void compile_string_constants(char *c, FILE *output_file){
 			fprintf(output_file, "\n");
 			num_strs++;
 		}
+		skip_whitespace(&c);
 	}
 }
 
