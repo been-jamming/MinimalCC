@@ -8,6 +8,7 @@ int INT_TOKEN;
 int STR_TOKEN;
 int VAR_TOKEN;
 int SUBSTRING;
+int STRFUNC;
 
 int PLUS;
 int MINUS;
@@ -43,19 +44,20 @@ void init_tokens(){
 	INT_TOKEN = 1;
 	STR_TOKEN = 2;
 	SUBSTRING = 3;
+	STRFUNC = 4;
 
-	PLUS = 4;
-	MINUS = 5;
-	MULTIPLY = 6;
-	DIVIDE = 7;
-	EQUALS = 8;
-	GREATER_THAN = 9;
-	LESS_THAN = 10;
-	NOT_EQUALS = 11;
-	AND = 12;
-	OR = 13;
+	PLUS = 5;
+	MINUS = 6;
+	MULTIPLY = 7;
+	DIVIDE = 8;
+	EQUALS = 9;
+	GREATER_THAN = 10;
+	LESS_THAN = 11;
+	NOT_EQUALS = 12;
+	AND = 13;
+	OR = 14;
 
-	VAR_TOKEN = 14;
+	VAR_TOKEN = 15;
 
 	INTVAR = 0;
 	STRVAR = 1;
@@ -220,7 +222,7 @@ void *get_var(char **c){
 	return create_token(VAR_TOKEN, buffer, index);
 }
 
-void *get_function(char **c){
+void *get_function(char **c, int *err){
 	char buffer[32];
 	char *temp;
 	void *arg1;
@@ -228,21 +230,24 @@ void *get_function(char **c){
 	void *arg3;
 	void **output;
 
+	*err = 0;
 	temp = *c;
 	get_word(buffer, &temp, 32);
 	if(!strcmp(buffer, "SUBSTR")){
 		*c = temp;
 		skip_whitespace(c);
-		if(**c == '(')
+		if(**c == '('){
 			*c = *c + 1;
-		else
+		} else {
 			return (void *) 0;
+		}
 		arg1 = get_expression(c);
 		if(**c == ',' && (int) arg1){
 			*c = *c + 1;
 		} else {
 			if((int) arg1)
 				free_expression(arg1);
+			*err = 1;
 			return (void *) 0;
 		}
 		arg2 = get_expression(c);
@@ -252,6 +257,7 @@ void *get_function(char **c){
 			free_expression(arg1);
 			if(arg2)
 				free_expression(arg2);
+			*err = 1;
 			return (void *) 0;
 		}
 		arg3 = get_expression(c);
@@ -262,6 +268,7 @@ void *get_function(char **c){
 			free_expression(arg2);
 			if((int) arg3)
 				free_expression(arg3);
+			*err = 1;
 			return (void *) 0;
 		}
 		output = kmalloc(POINTER_SIZE*4);
@@ -269,6 +276,27 @@ void *get_function(char **c){
 		output[1] = arg1;
 		output[2] = arg2;
 		output[3] = arg3;
+		return output;
+	} else if(!strcmp(buffer, "STR")){
+		*c = temp;
+		skip_whitespace(c);
+		if(**c == '('){
+			*c = *c + 1;
+		} else {
+			return (void *) 0;
+		}
+		arg1 = get_expression(c);
+		if(**c == ')' && (int) arg1){
+			*c = *c + 1;
+		} else {
+			if((int) arg1)
+				free_expression(arg1);
+			*err = 1;
+			return (void *) 0;
+		}
+		output = kmalloc(POINTER_SIZE*2);
+		output[0] = (void *) STRFUNC;
+		output[1] = arg1;
 		return output;
 	} else {
 		return (void *) 0;
@@ -278,6 +306,7 @@ void *get_function(char **c){
 void *get_value(char **c){
 	char *str;
 	void *output;
+	int err;
 
 	skip_whitespace(c);
 	if(**c == '-' || (**c >= '0' && **c <= '9')){
@@ -289,7 +318,9 @@ void *get_value(char **c){
 			*c = *c + 1;
 		return output;
 	} else if(alpha(**c)){
-		output = get_function(c);
+		output = get_function(c, &err);
+		if(err)
+			return (void *) 0;
 		if(!output)
 			return get_var(c);
 		return output;
@@ -398,6 +429,9 @@ void free_expression(void *expr){
 		free_expression(((void **) expr)[2]);
 		free_expression(((void **) expr)[3]);
 		kfree(expr);
+	} else if(((int *) expr)[0] == STRFUNC){
+		free_expression(((void **) expr)[1]);
+		kfree(expr);
 	}
 }
 
@@ -452,6 +486,10 @@ void list_expression(void *expr){
 		list_expression(((void **) expr)[2]);
 		prints(", ");
 		list_expression(((void **) expr)[3]);
+		prints(")");
+	} else if(((int *) expr)[0] == STRFUNC){
+		prints("STR(");
+		list_expression(((void **) expr)[1]);
 		prints(")");
 	}
 }

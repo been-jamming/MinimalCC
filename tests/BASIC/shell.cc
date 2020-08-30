@@ -61,6 +61,15 @@ int strlen(char *str){
 	return output;
 }
 
+void strcpy(char *a, char *b){
+	while(*b){
+		*a = *b;
+		a = a + 1;
+		b = b + 1;
+	}
+	*a = 0;
+}
+
 void strncpy(char *str1, char *str2, int max){
 	while(max && *str2){
 		*str1 = *str2;
@@ -276,6 +285,51 @@ void *or_values(void **value0, void **value1){
 	}
 }
 
+void *strfunc(void **value1){
+	int int_arg;
+	int is_neg;
+	char *new_str;
+	char *str_pos;
+	char buffer[16];
+	char c;
+
+	is_neg = 0;
+
+	if((int) value1[0] == INT_VAL){
+		int_arg = (int) value1[1];
+		buffer[15] = 0;
+		str_pos = buffer + 14;
+		if(int_arg < 0){
+			int_arg = -int_arg;
+			is_neg = 1;
+		}
+		if(!int_arg){
+			*str_pos = '0';
+			str_pos = str_pos - 1;
+		} else {
+			while(int_arg){
+				c = int_arg%10 + '0';
+				*str_pos = c;
+				str_pos = str_pos - 1;
+				int_arg = int_arg/10;
+			}
+		}
+		if(is_neg){
+			*str_pos = '-';
+			str_pos = str_pos - 1;
+		}
+		new_str = kmalloc(CHAR_SIZE*(buffer - str_pos + 16));
+		strcpy(new_str, str_pos + 1);
+		free_value(value1);
+		return create_value(STR_VAL, new_str);
+	} else if((int) value1[0] == STR_VAL){
+		return value1;
+	} else {
+		free_value(value1);
+		return create_value(ERR_VAL, (void *) 0);
+	}
+}
+
 void *substring(void **value1, void **value2, void **value3){
 	int char0;
 	int char1;
@@ -396,6 +450,15 @@ void *evaluate(void *expression){
 		value3 = evaluate(arg3);
 
 		return substring(value1, value2, value3);
+	} else if(((int *) expression)[0] == STRFUNC){
+		void *arg1;
+		void *value1;
+
+		arg1 = ((void **) expression)[1];
+
+		value1 = evaluate(arg1);
+
+		return strfunc(value1);
 	} else {
 		return create_value(ERR_VAL, (void *) 0);
 	}
