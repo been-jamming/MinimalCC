@@ -674,6 +674,32 @@ int run_input(void **statement){
 	return 0;
 }
 
+int run_inputstr(void **statement){
+	char inp_buffer[256];
+	int inp_length;
+	char *new_str;
+	void **var_token;
+	void **value;
+
+	inputs(inp_buffer, 256);
+	inp_length = strlen(inp_buffer);
+	if(inp_length){
+		inp_buffer[inp_length - 1] = 0;
+		inp_length = inp_length - 1;
+	}
+	new_str = kmalloc(CHAR_SIZE*(inp_length + 1));
+	strcpy(new_str, inp_buffer);
+	
+	var_token = statement[1];
+	value = create_value(STR_VAL, new_str);
+	if(set_var(var_token, value)){
+		free_value(value);
+		return 1;
+	}
+
+	return 0;
+}
+
 int run_let(void **statement){
 	void **var_token;
 	void **expr;
@@ -836,6 +862,8 @@ int run_statement(void **statement){
 		return run_print(statement);
 	else if((int) statement[0] == INPUT)
 		return run_input(statement);
+	else if((int) statement[0] == INPUTSTR)
+		return run_inputstr(statement);
 	else if((int) statement[0] == RUN)
 		return run_program(next_list(statement_list));
 	else if((int) statement[0] == END)
@@ -865,6 +893,8 @@ void list_statement(void **statement){
 		list_print(statement);
 	else if((int) statement[0] == INPUT)
 		list_input(statement);
+	else if((int) statement[0] == INPUTSTR)
+		list_inputstr(statement);
 	else if((int) statement[0] == RUN)
 		list_run(next_list(statement_list));
 	else if((int) statement[0] == END)

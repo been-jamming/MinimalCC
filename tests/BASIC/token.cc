@@ -27,6 +27,7 @@ int STRVAR;
 
 int PRINT;
 int INPUT;
+int INPUTSTR;
 int RUN;
 int END;
 int IF;
@@ -64,15 +65,16 @@ void init_tokens(){
 
 	PRINT = 1;
 	INPUT = 2;
-	RUN = 3;
-	END = 4;
-	IF = 5;
-	WHILE = 6;
-	DIM = 7;
-	GOSUB = 8;
-	GOTO = 9;
-	RETURN = 10;
-	LIST = 11;
+	INPUTSTR = 3;
+	RUN = 4;
+	END = 5;
+	IF = 6;
+	WHILE = 7;
+	DIM = 8;
+	GOSUB = 9;
+	GOTO = 10;
+	RETURN = 11;
+	LIST = 12;
 }
 
 int alpha(char c){
@@ -543,6 +545,30 @@ void list_input(void **statement){
 	list_expression(statement[1]);
 }
 
+void **parse_inputstr(char **c){
+	void **output;
+
+	skip_whitespace(c);
+	if(!alpha(**c))
+		return (void **) 0;
+	output = kmalloc(POINTER_SIZE*2);
+	output[0] = (void *) INPUTSTR;
+	output[1] = get_var(c);
+	skip_whitespace(c);
+	if(**c){
+		free_expression(output[1]);
+		kfree(output);
+		return (void **) 0;
+	}
+
+	return output;
+}
+
+void list_inputstr(void **statement){
+	prints("INPUTSTR ");
+	list_expression(statement[1]);
+}
+
 void **parse_let(char **c){
 	void **output;
 
@@ -813,6 +839,8 @@ void **get_statement(char **c){
 		return parse_print(c);
 	else if(!strcmp(buffer, "INPUT"))
 		return parse_input(c);
+	else if(!strcmp(buffer, "INPUTSTR"))
+		return parse_inputstr(c);
 	else if(!strcmp(buffer, "RUN"))
 		return parse_run(c);
 	else if(!strcmp(buffer, "END"))

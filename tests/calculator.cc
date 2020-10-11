@@ -7,6 +7,7 @@ Made for MCC compiler
 
 void prints(char *);
 int inputd();
+char inputc();
 void inputs(char *, int);
 void printd(int);
 
@@ -22,7 +23,7 @@ void entry(){
 	quit = 0;
 	while(!quit){
 		error = 0;
-		prints("\nEnter first number: ");
+		prints("Enter first number: ");
 		a = inputd();
 		prints("Enter second number: ");
 		b = inputd();
@@ -44,5 +45,8 @@ void entry(){
 			prints("Result: ");
 			printd(result);
 		}
+		prints("\nWould you like to coninue? (y/n): ");
+		quit = inputc() == 'n';
+		inputc();
 	}
 }
