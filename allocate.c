@@ -32,7 +32,7 @@ data_entry allocate(unsigned char force_stack){
 		stack_size += 4;
 	} else {
 		output.type = data_register;
-		output.reg = register_list.num_allocated;
+		output.reg = register_list.registers[register_list.num_allocated];
 		register_list.num_allocated++;
 	}
 
